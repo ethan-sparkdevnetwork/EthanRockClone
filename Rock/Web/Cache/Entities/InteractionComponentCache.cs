@@ -15,6 +15,8 @@
 // </copyright>
 //
 using System;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Runtime.Serialization;
 
 using Rock.Data;
@@ -30,6 +32,12 @@ namespace Rock.Web.Cache
     [DataContract]
     public class InteractionComponentCache : ModelCache<InteractionComponentCache, InteractionComponent>
     {
+
+        #region Static Fields
+
+        private static ConcurrentDictionary<string, int> _interactionComponentIdLookupFromForeignKey = new ConcurrentDictionary<string, int>();
+
+        #endregion
 
         #region Properties
 
@@ -81,11 +89,19 @@ namespace Rock.Web.Cache
             base.SetFromEntity( entity );
 
             var interactionComponent = entity as InteractionComponent;
-            if ( interactionComponent == null ) return;
+            if ( interactionComponent == null )
+            {
+                return;
+            }
 
             Name = interactionComponent.Name;
             EntityId = interactionComponent.EntityId;
             ChannelId = interactionComponent.ChannelId;
+
+            if ( interactionComponent.ForeignKey.IsNotNullOrWhiteSpace() )
+            {
+                _interactionComponentIdLookupFromForeignKey.AddOrUpdate( interactionComponent.ForeignKey, interactionComponent.Id, ( k, v ) => interactionComponent.Id );
+            }
         }
 
         /// <summary>
@@ -105,7 +121,7 @@ namespace Rock.Web.Cache
         /// <param name="guid">The unique identifier.</param>
         /// <returns></returns>
         [RockObsolete( "1.8" )]
-        [Obsolete("Use Get Instead")]
+        [Obsolete( "Use Get Instead" )]
         public static InteractionComponentCache Read( string guid )
         {
             Guid realGuid = guid.AsGuid();
@@ -115,6 +131,48 @@ namespace Rock.Web.Cache
             }
 
             return Get( realGuid );
+        }
+
+        /// <summary>
+        /// Gets the component identifier by foreign key.
+        /// If foreignKey is blank, this will throw a <seealso cref="ArgumentNullException"/>
+        /// </summary>
+        /// <param name="foreignKey">The foreign key.</param>
+        /// <param name="componentName">Name of the component.</param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException">ForeignKey must be specified when using GetComponentIdByForeignKey</exception>
+        public static int? GetComponentIdByForeignKey( string foreignKey, string componentName )
+        {
+            if ( foreignKey.IsNotNullOrWhiteSpace() )
+            {
+                throw new ArgumentNullException( "ForeignKey must be specified when using GetComponentIdByForeignKey" );
+            }
+
+            if ( _interactionComponentIdLookupFromForeignKey.TryGetValue( foreignKey, out int channelId ) )
+            {
+                return channelId;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var interactionComponentService = new InteractionComponentService( rockContext );
+                var interactionComponent = interactionComponentService.Queryable()
+                        .Where( a => a.ForeignKey == foreignKey ).FirstOrDefault();
+
+                if ( interactionComponent == null )
+                {
+                    interactionComponent = new InteractionComponent();
+                    interactionComponent.Name = componentName;
+                    interactionComponent.ForeignKey = foreignKey;
+                    interactionComponentService.Add( interactionComponent );
+                    rockContext.SaveChanges();
+                }
+
+                var interactionComponentId = Get( interactionComponent ).Id;
+                _interactionComponentIdLookupFromForeignKey.AddOrUpdate( foreignKey, interactionComponentId, ( k, v ) => interactionComponentId );
+
+                return interactionComponentId;
+            }
         }
 
         #endregion

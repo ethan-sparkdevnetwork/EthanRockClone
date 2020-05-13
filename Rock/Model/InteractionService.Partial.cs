@@ -15,9 +15,12 @@
 // </copyright>
 //
 using System;
+using System.Collections.Generic;
 using System.Linq;
-
+using System.Threading.Tasks;
+using Rock.BulkImport;
 using Rock.Data;
+using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -118,7 +121,7 @@ namespace Rock.Model
             var deviceApplication = uaParser.ParseUserAgent( userAgent ).ToString();
             var deviceClientType = InteractionDeviceType.GetClientType( userAgent );
 
-            var interaction = CreateInteraction( interactionComponentId, null, null, string.Empty, null, null, RockDateTime.Now, 
+            var interaction = CreateInteraction( interactionComponentId, null, null, string.Empty, null, null, RockDateTime.Now,
                 deviceApplication, deviceOs, deviceClientType, userAgent, ipAddress, browserSessionId );
 
             if ( url.IsNotNullOrWhiteSpace() && url.IndexOf( "utm_", StringComparison.OrdinalIgnoreCase ) >= 0 )
@@ -260,12 +263,147 @@ namespace Rock.Model
                 var interactions = Queryable()
                     .Where( i => i.PersonalDeviceId == personalDeviceId )
                     .Where( i => i.PersonAliasId == null );
-                
+
                 // Use BulkUpdate to set the PersonAliasId
                 new RockContext().BulkUpdate( interactions, i => new Interaction { PersonAliasId = personAliasId } );
             }
 
             return interactionsCount;
         }
+
+        #region BulkImport related
+
+        /// <summary>
+        /// BulkInserts Interaction Records
+        /// </summary>
+        /// <param name="interactionsImport">The interactions import.</param>
+        public static void BulkInteractionImport( InteractionsImport interactionsImport )
+        {
+            if ( interactionsImport == null )
+            {
+                throw new Exception( "InteractionsImport must be assigned a value." );
+            }
+
+            var interactionImportList = interactionsImport.Interactions;
+
+            if ( !interactionImportList.Any() )
+            {
+                // if there aren't any return
+                return;
+            }
+
+            List<Interaction> interactionsToInsert = new List<Interaction>();
+
+            foreach ( InteractionImport interactionImport in interactionImportList )
+            {
+                // Determine which Channel this should be set to
+                if ( interactionImport.InteractionChannelId.HasValue )
+                {
+                    // make sure it is a valid Id
+                    interactionImport.InteractionChannelId = InteractionChannelCache.Get( interactionImport.InteractionChannelId.Value )?.Id;
+                }
+
+                if ( !interactionImport.InteractionChannelId.HasValue )
+                {
+                    if ( interactionImport.InteractionChannelGuid.HasValue )
+                    {
+                        interactionImport.InteractionChannelId = InteractionChannelCache.GetId( interactionImport.InteractionChannelGuid.Value );
+                    }
+                    else if ( interactionImport.InteractionChannelForeignKey.IsNotNullOrWhiteSpace() )
+                    {
+                        interactionImport.InteractionChannelId = InteractionChannelCache.GetChannelIdByForeignKey( interactionImport.InteractionChannelForeignKey, interactionImport.InteractionChannelName );
+                    }
+                    else
+                    {
+                        // TODO what should be done if nothing related to Channel is specified?
+                    }
+                }
+
+                // Determine which Component this should be set to
+                if ( interactionImport.InteractionComponentId.HasValue )
+                {
+                    // make sure it is a valid Id
+                    interactionImport.InteractionComponentId = InteractionComponentCache.Get( interactionImport.InteractionComponentId.Value )?.Id;
+                }
+
+                if ( !interactionImport.InteractionComponentId.HasValue )
+                {
+                    if ( interactionImport.InteractionComponentGuid.HasValue )
+                    {
+                        interactionImport.InteractionComponentId = InteractionComponentCache.GetId( interactionImport.InteractionComponentGuid.Value );
+                    }
+                    else if ( interactionImport.InteractionComponentForeignKey.IsNotNullOrWhiteSpace() )
+                    {
+                        interactionImport.InteractionComponentId = InteractionComponentCache.GetComponentIdByForeignKey( interactionImport.InteractionComponentForeignKey, interactionImport.InteractionComponentName );
+                    }
+                    else
+                    {
+                        // TODO what should be done if nothing related to Component is specified?
+                    }
+                }
+            }
+
+            foreach ( InteractionImport interactionImport in interactionImportList.Where( a => a.InteractionComponentId.HasValue ) )
+            {
+                Interaction interaction = new Interaction
+                {
+                    InteractionComponentId = interactionImport.InteractionComponentId.Value
+                };
+
+                interaction.InteractionDateTime = interactionImport.Interaction.InteractionDateTime;
+
+                // if operation is over 25, truncate it
+                interaction.Operation = interactionImport.Interaction.Operation.Truncate( 25 );
+
+                interaction.InteractionComponentId = interactionImport.InteractionComponentId.Value;
+                interaction.EntityId = interactionImport.Interaction.EntityId;
+                interaction.RelatedEntityTypeId = interactionImport.Interaction.RelatedEntityTypeId;
+                interaction.RelatedEntityId = interactionImport.Interaction.RelatedEntityId;
+                interaction.PersonAliasId = interactionImport.Interaction.PersonAliasId;
+
+                // BulkImport doesn't include Session information TODO???
+                interaction.InteractionSessionId = null;
+
+                // if the summary is over 500 chars, truncate with addEllipsis=true
+                interaction.InteractionSummary = interactionImport.Interaction.InteractionSummary.Truncate( 500, true );
+
+                interaction.InteractionData = interactionImport.Interaction.InteractionData;
+                interaction.PersonalDeviceId = interactionImport.Interaction.PersonalDeviceId;
+
+                interaction.InteractionEndDateTime = interactionImport.Interaction.InteractionEndDateTime;
+
+                // Campaign related fields, we'll truncate those if they are too long
+                interaction.Source = interactionImport.Interaction.Source.Truncate( 25 );
+                interaction.Medium = interactionImport.Interaction.Medium.Truncate( 25 );
+                interaction.Campaign = interactionImport.Interaction.Campaign.Truncate( 50 );
+                interaction.Content = interactionImport.Interaction.Content.Truncate( 50 );
+                interaction.Term = interactionImport.Interaction.Term.Truncate( 50 );
+                interaction.ForeignId = interactionImport.Interaction.ForeignId;
+                interaction.ForeignKey = interactionImport.Interaction.ForeignKey;
+                interaction.ForeignGuid = interactionImport.Interaction.ForeignGuid;
+
+                /* Fields that are introduced in v11.0
+                interaction.ChannelCustom1 = interactionImport.Interaction.ChannelCustom1;
+                interaction.ChannelCustom2 = interactionImport.Interaction.ChannelCustom2;
+                interaction.ChannelCustomIndexed1 = interactionImport.Interaction.ChannelCustomIndexed1;
+                interaction.InteractionLength = interactionImport.Interaction.InteractionLength;
+                interaction.InteractionTimeToServe = interactionImport.Interaction.InteractionTimeToServe;
+                */
+
+                interactionsToInsert.Add( interaction );
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                rockContext.BulkInsert( interactionsToInsert );
+            }
+
+            // This logic is normally handled in the Interaction.PostSave method, but since the BulkInsert bypasses those
+            // model hooks, streaks need to be updated here. Also, it is not necessary for this logic to complete before this
+            // transaction can continue processing and exit, so update the streak using a task.
+            interactionsToInsert.ForEach( i => Task.Run( () => StreakTypeService.HandleInteractionRecord( i ) ) );
+        }
     }
+
+    #endregion BulkImport related
 }

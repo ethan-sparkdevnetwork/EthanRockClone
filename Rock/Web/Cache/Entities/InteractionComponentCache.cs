@@ -100,7 +100,8 @@ namespace Rock.Web.Cache
 
             if ( interactionComponent.ForeignKey.IsNotNullOrWhiteSpace() )
             {
-                _interactionComponentIdLookupFromForeignKey.AddOrUpdate( interactionComponent.ForeignKey, interactionComponent.Id, ( k, v ) => interactionComponent.Id );
+                var lookupKey = $"{interactionComponent.ForeignKey}|interactionChannelId:{interactionComponent.ChannelId}";
+                _interactionComponentIdLookupFromForeignKey.AddOrUpdate( lookupKey, interactionComponent.Id, ( k, v ) => interactionComponent.Id );
             }
         }
 
@@ -134,21 +135,25 @@ namespace Rock.Web.Cache
         }
 
         /// <summary>
-        /// Gets the component identifier by foreign key.
-        /// If foreignKey is blank, this will throw a <seealso cref="ArgumentNullException"/>
+        /// Gets the component identifier by foreign key and ChannelId, and creates it if it doesn't exist.
+        /// If foreignKey is blank, this will throw a <seealso cref="ArgumentNullException" />
+        /// If creating a new InteractionComponent with this, componentName must be specified
         /// </summary>
         /// <param name="foreignKey">The foreign key.</param>
+        /// <param name="interactionChannelId">The interaction channel identifier.</param>
         /// <param name="componentName">Name of the component.</param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException">ForeignKey must be specified when using GetComponentIdByForeignKey</exception>
-        public static int? GetComponentIdByForeignKey( string foreignKey, string componentName )
+        public static int GetComponentIdByForeignKeyAndChannelId( string foreignKey, int interactionChannelId, string componentName )
         {
-            if ( foreignKey.IsNotNullOrWhiteSpace() )
+            if ( foreignKey.IsNullOrWhiteSpace() )
             {
                 throw new ArgumentNullException( "ForeignKey must be specified when using GetComponentIdByForeignKey" );
             }
 
-            if ( _interactionComponentIdLookupFromForeignKey.TryGetValue( foreignKey, out int channelId ) )
+            var lookupKey = $"{foreignKey}|interactionChannelId:{interactionChannelId}";
+
+            if ( _interactionComponentIdLookupFromForeignKey.TryGetValue( lookupKey, out int channelId ) )
             {
                 return channelId;
             }
@@ -157,19 +162,20 @@ namespace Rock.Web.Cache
             {
                 var interactionComponentService = new InteractionComponentService( rockContext );
                 var interactionComponent = interactionComponentService.Queryable()
-                        .Where( a => a.ForeignKey == foreignKey ).FirstOrDefault();
+                        .Where( a => a.ForeignKey == foreignKey && a.ChannelId == interactionChannelId ).FirstOrDefault();
 
                 if ( interactionComponent == null )
                 {
                     interactionComponent = new InteractionComponent();
                     interactionComponent.Name = componentName;
                     interactionComponent.ForeignKey = foreignKey;
+                    interactionComponent.ChannelId = interactionChannelId;
                     interactionComponentService.Add( interactionComponent );
                     rockContext.SaveChanges();
                 }
 
                 var interactionComponentId = Get( interactionComponent ).Id;
-                _interactionComponentIdLookupFromForeignKey.AddOrUpdate( foreignKey, interactionComponentId, ( k, v ) => interactionComponentId );
+                _interactionComponentIdLookupFromForeignKey.AddOrUpdate( lookupKey, interactionComponentId, ( k, v ) => interactionComponentId );
 
                 return interactionComponentId;
             }

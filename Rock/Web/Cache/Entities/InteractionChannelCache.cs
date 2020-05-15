@@ -312,7 +312,7 @@ namespace Rock.Web.Cache
         /// <exception cref="ArgumentNullException">ForeignKey must be specified when using GetChannelIdByForeignKey</exception>
         public static int GetChannelIdByForeignKey( string foreignKey, string channelName )
         {
-            if ( foreignKey.IsNotNullOrWhiteSpace() )
+            if ( foreignKey.IsNullOrWhiteSpace() )
             {
                 throw new ArgumentNullException( "ForeignKey must be specified when using GetChannelIdByForeignKey" );
             }

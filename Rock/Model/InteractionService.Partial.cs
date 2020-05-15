@@ -16,8 +16,11 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Data.SqlClient;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using Lucene.Net.Support;
 using Rock.BulkImport;
 using Rock.Data;
 using Rock.Web.Cache;
@@ -273,9 +276,16 @@ namespace Rock.Model
 
         #region BulkImport related
 
+
+
         /// <summary>
         /// BulkInserts Interaction Records
         /// </summary>
+        /// <remarks>
+        /// If any PersonAliasId references a PersonAliasId record that doesn't exist, the field value will be set to null.
+        /// Also, if the InteractionComponent Id (or Guid) is specified, but references a Interaction Component record that doesn't exist
+        /// the Interaction will not be recorded.
+        /// </remarks>
         /// <param name="interactionsImport">The interactions import.</param>
         public static void BulkInteractionImport( InteractionsImport interactionsImport )
         {
@@ -286,16 +296,50 @@ namespace Rock.Model
 
             var interactionImportList = interactionsImport.Interactions;
 
-            if ( !interactionImportList.Any() )
+            if ( interactionImportList == null || !interactionImportList.Any() )
             {
                 // if there aren't any return
                 return;
+            }
+
+            /* 2020-05-14 MDP
+             * Make sure that all the PersonAliasIds in the import exist in the database.
+             * For performance reasons, look them up all at one and keep a list of valid ones.
+
+ *           * If there are any PersonAliasIds that aren't valid,
+ *           * we decided that just set the PersonAliasId to null (we want ignore bad data).
+             */
+
+            var distinctPersonAliasIds = interactionsImport.Interactions.Where( a => a.Interaction.PersonAliasId.HasValue ).Select( a => a.Interaction.PersonAliasId.Value ).Distinct().ToList();
+            List<int> validPersonAliasIds = new List<int>();
+
+            while ( distinctPersonAliasIds.Any() )
+            {
+                /* 2020-05-14 MDP
+                  * If there over a 1000 distinct PersonAliasIds, we'll query for valid ones in chunks of 1000
+                    * this will prevent SQL complexity errors.
+                */
+
+                // get 1000 at a time to prevent SQL Complexity errors
+                List<int> distinctPersonAliasIdChunk = distinctPersonAliasIds.Take( 1000 ).ToList();
+                var validPersonAliasIdsChunk = new PersonAliasService( new RockContext() ).GetByIds( distinctPersonAliasIdChunk ).Select( a => a.Id );
+
+                // add the valid personIds that we found
+                validPersonAliasIds.AddRange( validPersonAliasIdsChunk );
+
+                // remove the ones  we already looked up and keep looping if there are still more to lookup
+                distinctPersonAliasIds = distinctPersonAliasIds.Where( a => !distinctPersonAliasIdChunk.Contains( a ) ).ToList();
             }
 
             List<Interaction> interactionsToInsert = new List<Interaction>();
 
             foreach ( InteractionImport interactionImport in interactionImportList )
             {
+                if ( interactionImport.Interaction == null )
+                {
+                    throw new ArgumentNullException( "InteractionImport.Interaction can not be null" );
+                }
+
                 // Determine which Channel this should be set to
                 if ( interactionImport.InteractionChannelId.HasValue )
                 {
@@ -309,13 +353,19 @@ namespace Rock.Model
                     {
                         interactionImport.InteractionChannelId = InteractionChannelCache.GetId( interactionImport.InteractionChannelGuid.Value );
                     }
-                    else if ( interactionImport.InteractionChannelForeignKey.IsNotNullOrWhiteSpace() )
+
+                    // if InteractionChannelId is still null, lookup (or create) an InteractionChannel from InteractionChannelForeignKey (if it is specified) 
+                    if ( interactionImport.InteractionChannelId == null && interactionImport.InteractionChannelForeignKey.IsNotNullOrWhiteSpace() )
                     {
                         interactionImport.InteractionChannelId = InteractionChannelCache.GetChannelIdByForeignKey( interactionImport.InteractionChannelForeignKey, interactionImport.InteractionChannelName );
                     }
                     else
                     {
-                        // TODO what should be done if nothing related to Channel is specified?
+                        /* 2020-05-14 MDP
+                            Discussed this and decided that if we tried InteractionChannelId and InteractionChannelGuid, and InteractionChannelForeignKey was not specified,
+                            we'll just skip over this record
+                         */
+                        continue;
                     }
                 }
 
@@ -332,13 +382,22 @@ namespace Rock.Model
                     {
                         interactionImport.InteractionComponentId = InteractionComponentCache.GetId( interactionImport.InteractionComponentGuid.Value );
                     }
-                    else if ( interactionImport.InteractionComponentForeignKey.IsNotNullOrWhiteSpace() )
+
+                    // if InteractionComponentId is still null, lookup (or create) an InteractionComponent from the ForeignKey and ChannelId
+                    if ( interactionImport.InteractionComponentForeignKey.IsNotNullOrWhiteSpace() )
                     {
-                        interactionImport.InteractionComponentId = InteractionComponentCache.GetComponentIdByForeignKey( interactionImport.InteractionComponentForeignKey, interactionImport.InteractionComponentName );
+                        interactionImport.InteractionComponentId = InteractionComponentCache.GetComponentIdByForeignKeyAndChannelId(
+                            interactionImport.InteractionComponentForeignKey,
+                            interactionImport.InteractionChannelId.Value,
+                            interactionImport.InteractionComponentName );
                     }
                     else
                     {
-                        // TODO what should be done if nothing related to Component is specified?
+                        /* 2020-05-14 MDP
+                            Discussed this and decided that and if we tried InteractionComponentId and InteractionComponentGuid, and InteractionComponentForeignKey was not specified,
+                            we'll just skip over this record
+                         */
+                        continue;
                     }
                 }
             }
@@ -357,9 +416,31 @@ namespace Rock.Model
 
                 interaction.InteractionComponentId = interactionImport.InteractionComponentId.Value;
                 interaction.EntityId = interactionImport.Interaction.EntityId;
-                interaction.RelatedEntityTypeId = interactionImport.Interaction.RelatedEntityTypeId;
+                if ( interactionImport.Interaction.RelatedEntityTypeId.HasValue )
+                {
+                    /* 2020-05-14 MDP
+                     * We want to ignore bad data, so first see if the RelatedEntityTypeId exists by looking it up in a cache.
+                     * If it doesn't exist, it'll set RelatedEntityTypeId to null (so that we don't get a database constraint error)
+                    */
+
+                    interaction.RelatedEntityTypeId = EntityTypeCache.Get( interactionImport.Interaction.RelatedEntityTypeId.Value )?.Id;
+                }
+
+
                 interaction.RelatedEntityId = interactionImport.Interaction.RelatedEntityId;
-                interaction.PersonAliasId = interactionImport.Interaction.PersonAliasId;
+
+                if ( interactionImport.Interaction.PersonAliasId.HasValue )
+                {
+                    /* 2020-05-14 MDP
+                     * We want to ignore bad data, so see if the specified PersonAliasId exists in the validPersonAliasIds that we lookup up
+                     * If it doesn't exist, we'll leave interaction.PersonAliasId null (so that we don't get a database constraint error)
+                    */
+
+                    if ( validPersonAliasIds.Contains( interactionImport.Interaction.PersonAliasId.Value ) )
+                    {
+                        interaction.PersonAliasId = interactionImport.Interaction.PersonAliasId.Value;
+                    }
+                }
 
                 // BulkImport doesn't include Session information TODO???
                 interaction.InteractionSessionId = null;
@@ -393,15 +474,23 @@ namespace Rock.Model
                 interactionsToInsert.Add( interaction );
             }
 
+            Debug.WriteLine( $"Start BulkInsert {RockDateTime.Now:o}" );
+
+            Debug.WriteLine( $"{interactionsImport.Interactions.Count - interactionsToInsert.Count} of {interactionsImport.Interactions.Count} could not be added." );
+
             using ( var rockContext = new RockContext() )
             {
                 rockContext.BulkInsert( interactionsToInsert );
             }
 
+            Debug.WriteLine( $"Done BulkInsert {RockDateTime.Now:o}" );
+
             // This logic is normally handled in the Interaction.PostSave method, but since the BulkInsert bypasses those
             // model hooks, streaks need to be updated here. Also, it is not necessary for this logic to complete before this
             // transaction can continue processing and exit, so update the streak using a task.
             interactionsToInsert.ForEach( i => Task.Run( () => StreakTypeService.HandleInteractionRecord( i ) ) );
+
+            Debug.WriteLine( $"Start StreakTypeService Tasks {RockDateTime.Now.ToString( "o" )}" );
         }
     }
 

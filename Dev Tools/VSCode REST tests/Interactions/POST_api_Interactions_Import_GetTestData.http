@@ -1,0 +1,16 @@
+## Instructions
+## - This requires the humao.rest-client extension ##
+## - This script requires that the Sample Data has been installed on a test Rock instance
+
+#### variables
+### Edit your VSCode settings.json file to include these settings
+##
+##   "rest-client.environmentVariables": {
+##        "$shared": {
+##            "rockBaseUrl": "http://localhost:6229",
+##            "tedDeckerPersonAliasId": "17"
+##        },
+##    }
+###
+
+GET {{rockBaseUrl}}/api/Interactions/Import/TestData?count=1000&randomBadData=false  HTTP/1.1

@@ -21,11 +21,18 @@
 // </copyright>
 //
 
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
+using Rock.BulkImport;
+using Rock.Data;
 using Rock.Model;
 using Rock.Rest.Filters;
+using Rock.Web.Cache;
 
 namespace Rock.Rest.Controllers
 {
@@ -37,19 +44,20 @@ namespace Rock.Rest.Controllers
         #region Import related
 
         /// <summary>
-        /// Import Attendance Records using BulkInsert
+        /// Import Interaction Records using BulkInsert
         /// </summary>
         /// <param name="interactionsImport">The interactions import.</param>
         /// <exception cref="HttpResponseException"></exception>
         /// <remarks>
+        /// For InteractionChannel* and InteractionComponent*: Id, Guid, or ForeignKey (and Name) must be specified. 
         /// For best performance, limit to 1000 records at a time.
-        /// Either the PersonId or PersonAliasId value can be specified, but at least one is required.
         /// </remarks>
         [Authenticate, Secured]
         [HttpPost]
         [System.Web.Http.Route( "api/Interactions/Import" )]
         public void InteractionImport( Rock.BulkImport.InteractionsImport interactionsImport )
         {
+            Debug.WriteLine( $"Got Request {RockDateTime.Now.ToString( "o" )}" );
             if ( interactionsImport == null )
             {
                 var response = new HttpResponseMessage
@@ -62,8 +70,129 @@ namespace Rock.Rest.Controllers
             }
 
             InteractionService.BulkInteractionImport( interactionsImport );
+            Debug.WriteLine( $"Send Response {RockDateTime.Now.ToString( "o" )}" );
         }
 
         #endregion Import related
+
+        [HttpGet]
+        [System.Web.Http.Route( "api/Interactions/Import/TestData" )]
+        public InteractionsImport GetTestData( int count, bool randomBadData )
+        {
+            var testInteractions = new List<InteractionImport>();
+
+            var channelCacheLookup = InteractionChannelCache.All().ToArray();
+            var componentCacheLookup = InteractionComponentCache.All().ToArray();
+            var entityTypeCacheLookup = EntityTypeCache.All().ToArray();
+
+            var rockContext = new RockContext();
+            var personAliasIds = new PersonAliasService( rockContext ).Queryable().Select( s => s.Id ).ToArray();
+            string[] randomOperations = new string[] {
+                "View",
+                "Open",
+                "Click",
+                "ReallyLongReallyLongReallyLongReallyLongReallyLongReallyLongReallyLongReallyLongReallyLongReallyLongReallyLongReallyLongReallyLongReallyLongReallyLong",
+                "Reply" };
+
+            for ( int i = 0; i < count; i++ )
+            {
+                var random = new Random();
+                InteractionImport interactionImport = new InteractionImport();
+                interactionImport.InteractionChannelForeignKey = Guid.NewGuid().ToString( "n" );
+                interactionImport.InteractionChannelGuid = channelCacheLookup[random.Next( 0, channelCacheLookup.Length - 1 )].Guid;
+                interactionImport.InteractionChannelId = channelCacheLookup[random.Next( 0, channelCacheLookup.Length - 1 )].Id;
+
+                interactionImport.InteractionComponentForeignKey = Guid.NewGuid().ToString( "n" );
+                interactionImport.InteractionComponentGuid = componentCacheLookup[random.Next( 0, componentCacheLookup.Length - 1 )].Guid;
+                interactionImport.InteractionComponentId = componentCacheLookup[random.Next( 0, componentCacheLookup.Length - 1 )].Id;
+
+                interactionImport.Interaction = new InteractionImportInteraction
+                {
+                    Operation = randomOperations[random.Next( 0, randomOperations.Length - 1 )],
+                    PersonAliasId = personAliasIds[random.Next( 0, personAliasIds.Length - 1 )],
+                    InteractionDateTime = RockDateTime.Now,
+                    InteractionEndDateTime = RockDateTime.Now.AddSeconds( random.Next( 1, 5000 ) ),
+                    EntityId = random.Next(),
+                    InteractionSummary = $"Some Summary { Guid.NewGuid() }",
+                    InteractionData = $"Some Data { Guid.NewGuid() }",
+                    PersonalDeviceId = null,
+                    RelatedEntityTypeId = entityTypeCacheLookup[random.Next( 0, entityTypeCacheLookup.Length - 1 )].Id,
+                    RelatedEntityId = null,
+                    Source = Guid.NewGuid().ToString(),
+                    Medium = Guid.NewGuid().ToString(),
+                    Campaign = Guid.NewGuid().ToString(),
+                    Content = Guid.NewGuid().ToString(),
+                    Term = Guid.NewGuid().ToString(),
+                    ChannelCustom1 = Guid.NewGuid().ToString(),
+                    ChannelCustom2 = Guid.NewGuid().ToString(),
+                    ChannelCustomIndexed1 = Guid.NewGuid().ToString(),
+                    InteractionLength = random.Next( 1, 10 ) / 10.0,
+                    InteractionTimeToServe = random.Next( 1, 10 ) / 10.0,
+                    ForeignId = random.Next(),
+
+                    // leave ForeignGuid null since there is a unique constraint on this.
+                    ForeignGuid = null,
+                    ForeignKey = $"RandomForeignKey_{random.Next()}"
+                };
+
+                if ( random.Next( 1, 5 ) == 3 )
+                {
+                    interactionImport.InteractionComponentId = null;
+                    if ( random.Next( 1, 3 ) == 2 )
+                    {
+                        interactionImport.InteractionComponentGuid = null;
+
+                        if ( randomBadData && random.Next( 1, 4 ) == 2 )
+                        {
+                            interactionImport.InteractionChannelForeignKey = null;
+                        }
+                    }
+                }
+
+                if ( random.Next( 1, 5 ) == 3 )
+                {
+                    interactionImport.InteractionChannelId = null;
+                    if ( random.Next( 1, 3 ) == 2 )
+                    {
+                        interactionImport.InteractionChannelGuid = null;
+
+                        if ( randomBadData && random.Next( 1, 4 ) == 2 )
+                        {
+                            interactionImport.InteractionChannelForeignKey = null;
+                        }
+                    }
+                }
+
+                if ( random.Next( 1, 15 ) == 7 )
+                {
+                    interactionImport.Interaction.PersonAliasId = null;
+                }
+
+                if ( randomBadData )
+                {
+                    if ( random.Next( 1, 15 ) == 7 )
+                    {
+                        interactionImport.Interaction.RelatedEntityTypeId = 6540654;
+                    }
+
+                    if ( random.Next( 1, 15 ) == 7 )
+                    {
+                        interactionImport.Interaction.PersonAliasId = 9876540;
+                    }
+                }
+
+                testInteractions.Add( interactionImport );
+            }
+
+
+            return new InteractionsImport
+            {
+                Interactions = testInteractions
+            };
+        }
+
+        #region Temp
+
+        #endregion
     }
 }

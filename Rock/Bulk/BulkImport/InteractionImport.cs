@@ -6,7 +6,7 @@ namespace Rock.BulkImport
     /// <summary>
     /// Import record from ~/api/Interaction/Import
     /// </summary>
-    public class InteractionImport
+    public  class InteractionImport
     {
         /// <summary>
         /// Gets or sets the interaction channel identifier.
@@ -91,7 +91,7 @@ namespace Rock.BulkImport
     /// <summary>
     /// 
     /// </summary>
-    public class InteractionImportInteraction
+    public class  InteractionImportInteraction
     {
         /// <summary>
         /// Gets or sets the operation.
@@ -99,7 +99,6 @@ namespace Rock.BulkImport
         /// <value>
         /// The operation.
         /// </value>
-        [StringLength( 25 )]
         public string Operation { get; set; }
 
         /// <summary>
@@ -249,10 +248,24 @@ namespace Rock.BulkImport
         /// </value>
         public string ChannelCustomIndexed1 { get; set; }
 
-        // TODO, what is this??
+        /// <summary>
+        /// Gets or sets the length of time (or percent of time) of the interaction.
+        /// The units on this depend on the InteractionChannel, which might have this be a Percent, Days, Seconds, Minutes, etc
+        /// For example, if this interaction type is watching a video, this might be what percent of the video they watched
+        /// </summary>
+        /// <value>
+        /// The length of the interaction.
+        /// </value>
         public double? InteractionLength { get; set; }
 
-        // TODO, what unit of time is this??? Seconds??
+        /// <summary>
+        /// Gets or sets the interaction time to serve. 
+        /// The units on this depend on the InteractionChannel, which might have this be a Percent, Days, Seconds, Minutes, etc.
+        /// For example, if this is a page view, this would be how long (in seconds) it took for Rock to generate a response.
+        /// </summary>
+        /// <value>
+        /// The interaction time to serve.
+        /// </value>
         public double? InteractionTimeToServe { get; set; }
 
         #endregion Fields that were introduced in v11.0
@@ -263,7 +276,7 @@ namespace Rock.BulkImport
         /// <value>
         /// The foreign identifier.
         /// </value>
-        public int ForeignId { get; set; }
+        public int? ForeignId { get; set; }
 
         /// <summary>
         /// Gets or sets the foreign key.
@@ -279,7 +292,7 @@ namespace Rock.BulkImport
         /// <value>
         /// The foreign unique identifier.
         /// </value>
-        public Guid? ForeignGuid { get; set; }
+        public virtual Guid? ForeignGuid { get; set; }
     }
 
 }

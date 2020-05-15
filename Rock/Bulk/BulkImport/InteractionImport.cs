@@ -6,7 +6,7 @@ namespace Rock.BulkImport
     /// <summary>
     /// Import record from ~/api/Interaction/Import
     /// </summary>
-    public  class InteractionImport
+    public class InteractionImport
     {
         /// <summary>
         /// Gets or sets the interaction channel identifier.
@@ -87,11 +87,10 @@ namespace Rock.BulkImport
         public InteractionImportInteraction Interaction { get; set; }
     }
 
-
     /// <summary>
     /// 
     /// </summary>
-    public class  InteractionImportInteraction
+    public class InteractionImportInteraction
     {
         /// <summary>
         /// Gets or sets the operation.
@@ -294,5 +293,4 @@ namespace Rock.BulkImport
         /// </value>
         public virtual Guid? ForeignGuid { get; set; }
     }
-
 }

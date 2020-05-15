@@ -16,11 +16,8 @@
 //
 using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
-using Lucene.Net.Support;
 using Rock.BulkImport;
 using Rock.Data;
 using Rock.Web.Cache;
@@ -276,8 +273,6 @@ namespace Rock.Model
 
         #region BulkImport related
 
-
-
         /// <summary>
         /// BulkInserts Interaction Records
         /// </summary>
@@ -287,7 +282,7 @@ namespace Rock.Model
         /// the Interaction will not be recorded.
         /// </remarks>
         /// <param name="interactionsImport">The interactions import.</param>
-        public static void BulkInteractionImport( InteractionsImport interactionsImport )
+        internal static void BulkInteractionImport( InteractionsImport interactionsImport )
         {
             if ( interactionsImport == null )
             {
@@ -306,30 +301,11 @@ namespace Rock.Model
              * Make sure that all the PersonAliasIds in the import exist in the database.
              * For performance reasons, look them up all at one and keep a list of valid ones.
 
- *           * If there are any PersonAliasIds that aren't valid,
- *           * we decided that just set the PersonAliasId to null (we want ignore bad data).
+             * If there are any PersonAliasIds that aren't valid,
+             * we decided that just set the PersonAliasId to null (we want ignore bad data).
              */
 
-            var distinctPersonAliasIds = interactionsImport.Interactions.Where( a => a.Interaction.PersonAliasId.HasValue ).Select( a => a.Interaction.PersonAliasId.Value ).Distinct().ToList();
-            List<int> validPersonAliasIds = new List<int>();
-
-            while ( distinctPersonAliasIds.Any() )
-            {
-                /* 2020-05-14 MDP
-                  * If there over a 1000 distinct PersonAliasIds, we'll query for valid ones in chunks of 1000
-                    * this will prevent SQL complexity errors.
-                */
-
-                // get 1000 at a time to prevent SQL Complexity errors
-                List<int> distinctPersonAliasIdChunk = distinctPersonAliasIds.Take( 1000 ).ToList();
-                var validPersonAliasIdsChunk = new PersonAliasService( new RockContext() ).GetByIds( distinctPersonAliasIdChunk ).Select( a => a.Id );
-
-                // add the valid personIds that we found
-                validPersonAliasIds.AddRange( validPersonAliasIdsChunk );
-
-                // remove the ones  we already looked up and keep looping if there are still more to lookup
-                distinctPersonAliasIds = distinctPersonAliasIds.Where( a => !distinctPersonAliasIdChunk.Contains( a ) ).ToList();
-            }
+            HashSet<int> validPersonAliasIds = interactionsImport.GetValidPersonAliasIds();
 
             List<Interaction> interactionsToInsert = new List<Interaction>();
 
@@ -426,7 +402,6 @@ namespace Rock.Model
                     interaction.RelatedEntityTypeId = EntityTypeCache.Get( interactionImport.Interaction.RelatedEntityTypeId.Value )?.Id;
                 }
 
-
                 interaction.RelatedEntityId = interactionImport.Interaction.RelatedEntityId;
 
                 if ( interactionImport.Interaction.PersonAliasId.HasValue )
@@ -474,23 +449,15 @@ namespace Rock.Model
                 interactionsToInsert.Add( interaction );
             }
 
-            Debug.WriteLine( $"Start BulkInsert {RockDateTime.Now:o}" );
-
-            Debug.WriteLine( $"{interactionsImport.Interactions.Count - interactionsToInsert.Count} of {interactionsImport.Interactions.Count} could not be added." );
-
             using ( var rockContext = new RockContext() )
             {
                 rockContext.BulkInsert( interactionsToInsert );
             }
 
-            Debug.WriteLine( $"Done BulkInsert {RockDateTime.Now:o}" );
-
             // This logic is normally handled in the Interaction.PostSave method, but since the BulkInsert bypasses those
             // model hooks, streaks need to be updated here. Also, it is not necessary for this logic to complete before this
             // transaction can continue processing and exit, so update the streak using a task.
             interactionsToInsert.ForEach( i => Task.Run( () => StreakTypeService.HandleInteractionRecord( i ) ) );
-
-            Debug.WriteLine( $"Start StreakTypeService Tasks {RockDateTime.Now.ToString( "o" )}" );
         }
     }
 

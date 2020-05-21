@@ -30,8 +30,23 @@ namespace Rock
         /// </summary>
         public static void Initialize()
         {
-            System.Diagnostics.Debugger.Launch();
-            System.Diagnostics.Debugger.Break();
+            if ( System.Web.Hosting.HostingEnvironment.InClientBuildManager == true )
+            {
+                // AssemblyInitializer is pre-loaded before RockWeb starts,
+                // but it is also loaded when just loading the Rock solution or building RockWeb!
+                // see https://stackoverflow.com/questions/13642691/avoid-aspnet-compiler-running-preapplicationstart-method/13689600#13689600
+
+                // We don't want RockApplicationStartupHelper.RunApplicationStartup to run in the situation, but 
+                // we can detect that with System.Web.Hosting.HostingEnvironment.InClientBuildManager
+
+                // so just exit
+
+                RockApplicationStartupHelper.LogStartupMessage( "AssemblyInitializer started by Visual Studio" );
+                return;
+            }
+
+            RockApplicationStartupHelper.LogStartupMessage( "AssemblyInitializer started by RockWeb" );
+
             RockApplicationStartupHelper.RunApplicationStartup();
         }
     }

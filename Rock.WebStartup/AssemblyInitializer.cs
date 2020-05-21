@@ -30,6 +30,8 @@ namespace Rock
         /// </summary>
         public static void Initialize()
         {
+            System.Diagnostics.Debugger.Launch();
+            System.Diagnostics.Debugger.Break();
             RockApplicationStartupHelper.RunApplicationStartup();
         }
     }

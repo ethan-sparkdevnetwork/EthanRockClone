@@ -16,6 +16,7 @@
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -174,8 +175,8 @@ namespace RockWeb
                 AddCallBack();
 
                 // register any EntityTypes or FieldTypes that are discovered in Rock or any plugins (including ones in ~/App_Code)
-                EntityTypeService.RegisterEntityTypes( Server.MapPath( "~" ) );
-                FieldTypeService.RegisterFieldTypes( Server.MapPath( "~" ) );
+                EntityTypeService.RegisterEntityTypes();
+                FieldTypeService.RegisterFieldTypes();
 
                 BundleConfig.RegisterBundles( BundleTable.Bundles );
 
@@ -189,7 +190,7 @@ namespace RockWeb
                 RockApplicationStartupHelper.LogStartupMessage( "Application Started Successfully" );
                 if ( System.Web.Hosting.HostingEnvironment.IsDevelopmentEnvironment )
                 {
-                    System.Diagnostics.Debug.WriteLine( string.Format( "[{0:#} ms] Total Startup Time", ( RockDateTime.Now - RockApplicationStartupHelper.StartDateTime ).TotalMilliseconds ) );
+                    System.Diagnostics.Debug.WriteLine( string.Format( "[{0,5:#} ms] Total Startup Time", ( RockDateTime.Now - RockApplicationStartupHelper.StartDateTime ).TotalMilliseconds ) );
                 }
 
                 ExceptionLogService.AlwaysLogToFile = false;
@@ -207,7 +208,8 @@ namespace RockWeb
                 throw startupException;
             }
 
-            // Update attributes for new workflow actions
+            // Update attributes for new workflow actions, instead of doing them on demand
+            // Not sure why we did this but this is the commit c23a4021d2ce7be96a30bae8c431c113f942f26f
             new Thread( () =>
             {
                 Rock.Workflow.ActionContainer.Instance.UpdateAttributes();
@@ -216,6 +218,7 @@ namespace RockWeb
             // compile less files
             new Thread( () =>
             {
+                var stopwatchCompileLess = Stopwatch.StartNew();
                 Thread.CurrentThread.IsBackground = true;
                 string messages = string.Empty;
                 RockTheme.CompileAll( out messages );
@@ -223,7 +226,7 @@ namespace RockWeb
                 {
                     if ( messages.IsNullOrWhiteSpace() )
                     {
-                        System.Diagnostics.Debug.WriteLine( "Less files compiled successfully." );
+                        System.Diagnostics.Debug.WriteLine( string.Format( "[{0,5:#} seconds] Less files compiled successfully. ", + stopwatchCompileLess.Elapsed.TotalSeconds ) );
                     }
                     else
                     {

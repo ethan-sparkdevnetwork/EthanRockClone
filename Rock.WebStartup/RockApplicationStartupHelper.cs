@@ -233,6 +233,7 @@ namespace Rock.WebStartup
 
         /// <summary>
         /// Adds/Updates any attributes that were defined in web.config 's rockConfig section
+        /// This is usually used for Plugin Components that need to get any changed values from web.config before startup
         /// </summary>
         private static void UpdateAttributesFromRockConfig( RockContext rockContext )
         {
@@ -253,6 +254,7 @@ namespace Rock.WebStartup
                     {
                         attribute = new Rock.Model.Attribute();
                         attribute.FieldTypeId = FieldTypeCache.Get( new Guid( Rock.SystemGuid.FieldType.TEXT ) ).Id;
+                        attribute.EntityTypeId = attributeValueConfig.EntityTypeId.AsInteger();
                         attribute.EntityTypeQualifierColumn = attributeValueConfig.EntityTypeQualifierColumm;
                         attribute.EntityTypeQualifierValue = attributeValueConfig.EntityTypeQualifierValue;
                         attribute.Key = attributeValueConfig.AttributeKey;

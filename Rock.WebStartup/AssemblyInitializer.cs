@@ -60,9 +60,13 @@ namespace Rock
             {
                 RockApplicationStartupHelper.RunApplicationStartup();
             }
+            catch ( RockStartupException rockStartupException )
+            {
+                AssemblyInitializerException = rockStartupException;
+            }
             catch ( Exception ex )
             {
-                AssemblyInitializerException = ex;
+                AssemblyInitializerException = new RockStartupException( "Error occurred in RunApplicationStartup", ex );
             }
         }
     }

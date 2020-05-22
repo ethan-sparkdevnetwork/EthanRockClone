@@ -15,6 +15,7 @@
 // </copyright>
 //
 using System;
+using System.Diagnostics;
 
 namespace Rock.WebStartup
 {
@@ -26,6 +27,7 @@ namespace Rock.WebStartup
     {
         private readonly Exception _exception;
         private readonly string _message;
+        private readonly string _stackTrace;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="RockStartupException"/> class.
@@ -46,6 +48,9 @@ namespace Rock.WebStartup
         {
             _message = message;
             _exception = exception;
+
+            // lets set the stacktrace manually to ensure we have one. Otherwise, it might not enough information to figure out where the error occurred
+            _stackTrace = new System.Diagnostics.StackTrace(1, true ).ToString();
         }
 
         /// <summary>
@@ -60,12 +65,14 @@ namespace Rock.WebStartup
         {
             get
             {
+                var stackTrace = this._stackTrace ?? base.StackTrace;
+
                 if ( _exception == null )
                 {
-                    return base.StackTrace;
+                    return stackTrace;
                 }
 
-                string stackTrace = _exception.StackTrace;
+                stackTrace += _exception.StackTrace;
                 var innerException = _exception.InnerException;
                 while ( innerException != null )
                 {

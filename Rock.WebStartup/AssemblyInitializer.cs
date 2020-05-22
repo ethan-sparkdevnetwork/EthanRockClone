@@ -15,6 +15,7 @@
 // </copyright>
 //
 
+using System;
 using Rock.WebStartup;
 
 namespace Rock
@@ -25,6 +26,14 @@ namespace Rock
     /// </summary>
     public static class AssemblyInitializer
     {
+        /// <summary>
+        /// Contains any Exception that occurred during <see cref="AssemblyInitializer.Initialize"/>
+        /// </summary>
+        /// <value>
+        /// The assembly initializer exception.
+        /// </value>
+        public static Exception AssemblyInitializerException { get; private set; }
+
         /// <summary>
         /// Initializes this instance.
         /// </summary>
@@ -47,7 +56,14 @@ namespace Rock
 
             RockApplicationStartupHelper.LogStartupMessage( "AssemblyInitializer started by RockWeb" );
 
-            RockApplicationStartupHelper.RunApplicationStartup();
+            try
+            {
+                RockApplicationStartupHelper.RunApplicationStartup();
+            }
+            catch ( Exception ex )
+            {
+                AssemblyInitializerException = ex;
+            }
         }
     }
 }

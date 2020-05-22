@@ -116,6 +116,8 @@ namespace RockWeb
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void Application_Start( object sender, EventArgs e )
         {
+            RockApplicationStartupHelper.ShowDebugTimingMessage( "Application Start" );
+
             QueueInUse = false;
 
             /* 2020-05-20 MDP
@@ -139,11 +141,18 @@ namespace RockWeb
 
             try
             {
+                // AssemblyInitializer will catch any exception that it gets and sets AssemblyInitializerException.
+                // Doing this lets us do any error handling (now that RockWeb has started)
+                if ( AssemblyInitializer.AssemblyInitializerException != null )
+                {
+                    throw AssemblyInitializer.AssemblyInitializerException;
+                }
+
                 // register the App_Code assembly in the Rock.Reflection helper so that Reflection methods can search for types in it
                 var appCodeAssembly = typeof( Global ).Assembly;
                 Rock.Reflection.SetAppCodeAssembly( appCodeAssembly );
 
-                // run any migrations that might be in App_Code. (Any that are dll's get run in RockApplicationStartupHelper.RunApplicationStartup())
+                // Probably won't be any, but run any migrations that might be in App_Code. (Any that are dll's get run in RockApplicationStartupHelper.RunApplicationStartup())
                 RockApplicationStartupHelper.RunPluginMigrations( appCodeAssembly );
 
                 // Register Routes
@@ -155,6 +164,8 @@ namespace RockWeb
 
                 // set the encryption protocols that are permissible for external SSL connections
                 System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls | System.Net.SecurityProtocolType.Tls11 | System.Net.SecurityProtocolType.Tls12;
+
+                RockApplicationStartupHelper.ShowDebugTimingMessage( "Register Routes" );
 
                 // Perform any Rock startups
                 RunStartups();
@@ -173,10 +184,12 @@ namespace RockWeb
 
                 SqlServerTypes.Utilities.LoadNativeAssemblies( Server.MapPath( "~" ) );
 
+                RockApplicationStartupHelper.ShowDebugTimingMessage( "Register Types" );
+
                 RockApplicationStartupHelper.LogStartupMessage( "Application Started Successfully" );
                 if ( System.Web.Hosting.HostingEnvironment.IsDevelopmentEnvironment )
                 {
-                    System.Diagnostics.Debug.WriteLine( string.Format( "Total Startup Time: [{0}ms]", ( RockDateTime.Now - RockApplicationStartupHelper.StartDateTime ).TotalMilliseconds ) );
+                    System.Diagnostics.Debug.WriteLine( string.Format( "[{0:#} ms] Total Startup Time", ( RockDateTime.Now - RockApplicationStartupHelper.StartDateTime ).TotalMilliseconds ) );
                 }
 
                 ExceptionLogService.AlwaysLogToFile = false;

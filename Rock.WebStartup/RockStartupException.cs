@@ -45,13 +45,13 @@ namespace Rock.WebStartup
             : base( message, exception )
         {
             _message = message;
-            _exception = exception ?? this;
+            _exception = exception;
         }
 
         /// <summary>
         /// Gets a message that describes the current exception.
         /// </summary>
-        public override string Message => $"{_message}:{_exception.Message}";
+        public override string Message => $"{_message}:{_exception?.Message}";
 
         /// <summary>
         /// Gets a string representation of the immediate frames on the call stack.
@@ -60,6 +60,11 @@ namespace Rock.WebStartup
         {
             get
             {
+                if ( _exception == null )
+                {
+                    return base.StackTrace;
+                }
+
                 string stackTrace = _exception.StackTrace;
                 var innerException = _exception.InnerException;
                 while ( innerException != null )

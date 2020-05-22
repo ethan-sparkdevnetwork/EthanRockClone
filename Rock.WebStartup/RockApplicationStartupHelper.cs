@@ -20,6 +20,7 @@ using System.Configuration;
 using System.Data.Entity;
 using System.Data.Entity.Migrations.Infrastructure;
 using System.Data.SqlClient;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -62,6 +63,8 @@ namespace Rock.WebStartup
         /// </summary>
         public static IScheduler QuartzScheduler { get; private set; } = null;
 
+        private static Stopwatch _debugTimingStopwatch = Stopwatch.StartNew();
+
         #endregion Properties
 
         /// <summary>
@@ -82,6 +85,18 @@ namespace Rock.WebStartup
 
             bool ranEFMigrations = MigrateDatabase( hasPendingEFMigrations );
 
+            ShowDebugTimingMessage( "EF Migrations" );
+
+            // Now that EF Migrations have gotten the Schema in sync with our Models,
+            // get the RockContext initialized (which can take several seconds)
+            // This will help reduce the chances of multiple instances RockWeb causing problems,
+            // like creating duplicate attributes, or running the same migration in parallel
+            using ( var rockContext = new RockContext() )
+            {
+                new AttributeService( rockContext ).Get( 0 );
+                ShowDebugTimingMessage( "Initialize RockContext" );
+            }
+
             if ( runMigrationFileInfo.Exists )
             {
                 // fileInfo.Delete() won't do anything if the file doesn't exist (it doesn't throw an exception if it is not there )
@@ -91,6 +106,8 @@ namespace Rock.WebStartup
 
             // Run any plugin migrations
             bool anyPluginMigrations = MigratePlugins();
+
+            ShowDebugTimingMessage( "Plugin Migrations" );
 
             /* 2020-05-20 MDP
                Plugins use Direct SQL to update data,
@@ -103,6 +120,9 @@ namespace Rock.WebStartup
             using ( var rockContext = new RockContext() )
             {
                 LoadCacheObjects( rockContext );
+
+                ShowDebugTimingMessage( "Load Cache Objects" );
+
                 UpdateAttributesFromRockConfig( rockContext );
             }
 
@@ -110,6 +130,7 @@ namespace Rock.WebStartup
             {
                 // If any migrations ran (version was likely updated)
                 SendVersionUpdateNotifications();
+                ShowDebugTimingMessage( "Send Version Update Notifications" );
             }
 
             RegisterHttpModules();
@@ -117,11 +138,14 @@ namespace Rock.WebStartup
             // Get Lava set up
             InitializeLava();
 
+            ShowDebugTimingMessage( "Startup Components" );
+
             // setup and launch the jobs infrastructure if running under IIS
             bool runJobsInContext = Convert.ToBoolean( ConfigurationManager.AppSettings["RunJobsInIISContext"] );
             if ( runJobsInContext )
             {
                 StartJobScheduler();
+                ShowDebugTimingMessage( "Start Job Scheduler" );
             }
         }
 
@@ -131,7 +155,7 @@ namespace Rock.WebStartup
         /// </summary>
         private static void RegisterHttpModules()
         {
-            var activeHttpModules = Rock.Web.HttpModules.HttpModuleContainer.GetActiveComponents(); // takes 8 seconds :(
+            var activeHttpModules = Rock.Web.HttpModules.HttpModuleContainer.GetActiveComponents();
 
             foreach ( var httpModule in activeHttpModules )
             {
@@ -219,10 +243,11 @@ namespace Rock.WebStartup
                 {
                     AttributeService attributeService = new AttributeService( rockContext );
                     AttributeValueService attributeValueService = new AttributeValueService( rockContext );
-                    var attribute = attributeService.Get( attributeValueConfig.EntityTypeId.AsInteger(),
-                                           attributeValueConfig.EntityTypeQualifierColumm,
-                                           attributeValueConfig.EntityTypeQualifierValue,
-                                           attributeValueConfig.AttributeKey );
+                    var attribute = attributeService.Get(
+                        attributeValueConfig.EntityTypeId.AsInteger(),
+                        attributeValueConfig.EntityTypeQualifierColumm,
+                        attributeValueConfig.EntityTypeQualifierValue,
+                        attributeValueConfig.AttributeKey );
 
                     if ( attribute == null )
                     {
@@ -239,7 +264,6 @@ namespace Rock.WebStartup
                     var attributeValue = attributeValueService.GetByAttributeIdAndEntityId( attribute.Id, attributeValueConfig.EntityId.AsInteger() );
                     if ( attributeValue == null && !string.IsNullOrWhiteSpace( attributeValueConfig.Value ) )
                     {
-
                         attributeValue = new Rock.Model.AttributeValue();
                         attributeValue.AttributeId = attribute.Id;
                         attributeValue.EntityId = attributeValueConfig.EntityId.AsInteger();
@@ -277,7 +301,10 @@ namespace Rock.WebStartup
                     LogError( startupException, null );
                     ExceptionLogService.LogException( startupException, null );
                 }
-                catch { }
+                catch
+                {
+                    // ignore
+                }
             }
         }
 
@@ -306,7 +333,7 @@ namespace Rock.WebStartup
             var lastDbMigrationId = DbService.ExecuteScaler( "select max(MigrationId) from __MigrationHistory" ) as string;
 
             // if they aren't the same, run EF Migrations
-            return ( lastDbMigrationId != lastRockMigrationId );
+            return lastDbMigrationId != lastRockMigrationId;
         }
 
         /// <summary>
@@ -374,11 +401,13 @@ namespace Rock.WebStartup
         /// </exception>
         public static bool RunPluginMigrations( Assembly pluginAssembly )
         {
+            string pluginAssemblyName = pluginAssembly.GetName().Name;
+
             // Migrate any plugins from the plugin assembly that have pending migrations
-            List<Type> migrationList = Rock.Reflection.SearchAssembly( pluginAssembly, typeof( Rock.Plugin.Migration ) ).Select( a => a.Value ).ToList();
+            List<Type> pluginMigrationTypes = Rock.Reflection.SearchAssembly( pluginAssembly, typeof( Rock.Plugin.Migration ) ).Select( a => a.Value ).ToList();
 
             // If any plugin migrations types were found
-            if ( !migrationList.Any() )
+            if ( !pluginMigrationTypes.Any() )
             {
                 return false;
             }
@@ -388,33 +417,28 @@ namespace Rock.WebStartup
             // Get the current rock version
             var rockVersion = new Version( Rock.VersionInfo.VersionInfo.GetRockProductVersionNumber() );
 
-            // Create dictionary for holding migrations specific to an assembly
-            var assemblies = new Dictionary<string, Dictionary<int, Type>>();
+            // put the migrations to run in a Dictionary so that we can run them in the correct order
+            // based on MigrationNumberAttribute
+            var migrationTypesByNumber = new Dictionary<int, Type>();
 
             // Iterate plugin migrations
-            foreach ( var migrationType in migrationList )
+            foreach ( var migrationType in pluginMigrationTypes )
             {
                 // Get the MigrationNumberAttribute for the migration
-                var migrationNumberAttr = System.Attribute.GetCustomAttribute( migrationType, typeof( Rock.Plugin.MigrationNumberAttribute ) ) as Rock.Plugin.MigrationNumberAttribute;
+                var migrationNumberAttr = migrationType.GetCustomAttribute<Rock.Plugin.MigrationNumberAttribute>();
                 if ( migrationNumberAttr != null )
                 {
                     // If the migration's minimum Rock version is less than or equal to the current rock version, add it to the list
                     var minRockVersion = new Version( migrationNumberAttr.MinimumRockVersion );
                     if ( minRockVersion.CompareTo( rockVersion ) <= 0 )
                     {
-                        string assemblyName = migrationType.Assembly.GetName().Name;
-                        if ( !assemblies.ContainsKey( assemblyName ) )
-                        {
-                            assemblies.Add( assemblyName, new Dictionary<int, Type>() );
-                        }
-
                         // Check to make sure no another migration has same number
-                        if ( assemblies[assemblyName].ContainsKey( migrationNumberAttr.Number ) )
+                        if ( migrationTypesByNumber.ContainsKey( migrationNumberAttr.Number ) )
                         {
-                            throw new RockStartupException( $"The '{assemblyName}' plugin assembly contains duplicate migration numbers ({ migrationNumberAttr.Number})." );
+                            throw new RockStartupException( $"The '{pluginAssemblyName}' plugin assembly contains duplicate migration numbers ({ migrationNumberAttr.Number})." );
                         }
 
-                        assemblies[assemblyName].Add( migrationNumberAttr.Number, migrationType );
+                        migrationTypesByNumber.Add( migrationNumberAttr.Number, migrationType );
                     }
                 }
             }
@@ -423,55 +447,70 @@ namespace Rock.WebStartup
             var rockContext = new RockContext();
             var pluginMigrationService = new PluginMigrationService( rockContext );
 
+            // Get the versions that have already been installed
+            var installedMigrationNumbers = pluginMigrationService.Queryable()
+                .Where( m => m.PluginAssemblyName == pluginAssemblyName )
+                .Select( a => a.MigrationNumber );
+
+            // narrow it down to migrations that haven't already been installed
+            migrationTypesByNumber = migrationTypesByNumber
+                .Where( a => !installedMigrationNumbers.Contains( a.Key ) )
+                .ToDictionary( k => k.Key, v => v.Value );
+
+            // Iterate each migration in the assembly in MigrationNumber order 
+            var migrationTypesToRun = migrationTypesByNumber.OrderBy( a => a.Key ).Select( a => a.Value ).ToList();
+
+            var configConnectionString = System.Configuration.ConfigurationManager.ConnectionStrings["RockContext"]?.ConnectionString;
+
             // Iterate each assembly that contains plugin migrations
-            foreach ( var assemblyMigrations in assemblies )
+            foreach ( Type migrationType in migrationTypesToRun )
             {
                 try
                 {
-                    // Get the versions that have already been installed
-                    var installedVersions = pluginMigrationService.Queryable()
-                        .Where( m => m.PluginAssemblyName == assemblyMigrations.Key )
-                        .ToList();
+                    int migrationNumber = migrationType.GetCustomAttribute<Rock.Plugin.MigrationNumberAttribute>().Number;
 
-                    // Iterate each migration in the assembly in MigrationNumber order 
-                    foreach ( var migrationType in assemblyMigrations.Value.OrderBy( t => t.Key ) )
+                    using ( var sqlConnection = new SqlConnection( configConnectionString ) )
                     {
-                        // Check to make sure migration has not already been run
-                        if ( !installedVersions.Any( v => v.MigrationNumber == migrationType.Key ) )
+                        try
                         {
-                            var sqlConnection = rockContext.Database.Connection as SqlConnection;
-                            using ( var sqlTxn = sqlConnection.BeginTransaction() )
+                            sqlConnection.Open();
+                        }
+                        catch ( SqlException ex )
+                        {
+                            throw new RockStartupException( "Error connecting to the SQL database. Please check the 'RockContext' connection string in the web.ConnectionString.config file.", ex );
+                        }
+
+                        using ( var sqlTxn = sqlConnection.BeginTransaction() )
+                        {
+                            bool transactionActive = true;
+                            try
                             {
-                                bool transactionActive = true;
-                                try
+                                // Create an instance of the migration and run the up migration
+                                var migration = Activator.CreateInstance( migrationType ) as Rock.Plugin.Migration;
+                                migration.SqlConnection = sqlConnection;
+                                migration.SqlTransaction = sqlTxn;
+                                migration.Up();
+                                sqlTxn.Commit();
+                                transactionActive = false;
+
+                                // Save the plugin migration version so that it is not run again
+                                var pluginMigration = new PluginMigration();
+                                pluginMigration.PluginAssemblyName = pluginAssemblyName;
+                                pluginMigration.MigrationNumber = migrationNumber;
+                                pluginMigration.MigrationName = migrationType.Name;
+                                pluginMigrationService.Add( pluginMigration );
+                                rockContext.SaveChanges();
+
+                                result = true;
+                            }
+                            catch ( Exception ex )
+                            {
+                                if ( transactionActive )
                                 {
-                                    // Create an instance of the migration and run the up migration
-                                    var migration = Activator.CreateInstance( migrationType.Value ) as Rock.Plugin.Migration;
-                                    migration.SqlConnection = sqlConnection;
-                                    migration.SqlTransaction = sqlTxn;
-                                    migration.Up();
-                                    sqlTxn.Commit();
-                                    transactionActive = false;
-
-                                    // Save the plugin migration version so that it is not run again
-                                    var pluginMigration = new PluginMigration();
-                                    pluginMigration.PluginAssemblyName = assemblyMigrations.Key;
-                                    pluginMigration.MigrationNumber = migrationType.Key;
-                                    pluginMigration.MigrationName = migrationType.Value.Name;
-                                    pluginMigrationService.Add( pluginMigration );
-                                    rockContext.SaveChanges();
-
-                                    result = true;
+                                    sqlTxn.Rollback();
                                 }
-                                catch ( Exception ex )
-                                {
-                                    if ( transactionActive )
-                                    {
-                                        sqlTxn.Rollback();
-                                    }
 
-                                    throw new RockStartupException( $"##Plugin Migration error occurred in {assemblyMigrations.Key}, {migrationType.Value.Name}##", ex );
-                                }
+                                throw new RockStartupException( $"##Plugin Migration error occurred in { migrationNumber}, {migrationType.Name}##", ex );
                             }
                         }
                     }
@@ -486,7 +525,7 @@ namespace Rock.WebStartup
                 catch ( Exception ex )
                 {
                     // If an exception occurs in an an assembly, log the error, and continue with next assembly
-                    var startupException = new RockStartupException( $"Error running migrations from {assemblyMigrations.Key}" );
+                    var startupException = new RockStartupException( $"Error running migrations from {pluginAssemblyName}" );
                     System.Diagnostics.Debug.WriteLine( startupException.Message );
                     LogError( ex, null );
                 }
@@ -539,9 +578,10 @@ namespace Rock.WebStartup
 
                 // get list of active jobs
                 ServiceJobService jobService = new ServiceJobService( rockContext );
-                foreach ( ServiceJob job in jobService.GetActiveJobs().ToList() )
+                var activeJobList = jobService.GetActiveJobs().OrderBy( a => a.Name ).ToList();
+                foreach ( ServiceJob job in activeJobList )
                 {
-                    const string errorLoadingStatus = "Error Loading Job";
+                    const string ErrorLoadingStatus = "Error Loading Job";
 
                     try
                     {
@@ -556,7 +596,7 @@ namespace Rock.WebStartup
 
                         //// if the last status was an error, but we now loaded successful, clear the error
                         // also, if the last status was 'Running', clear that status because it would have stopped if the app restarted
-                        if ( job.LastStatus == errorLoadingStatus || job.LastStatus == "Running" )
+                        if ( job.LastStatus == ErrorLoadingStatus || job.LastStatus == "Running" )
                         {
                             job.LastStatusMessage = string.Empty;
                             job.LastStatus = string.Empty;
@@ -574,7 +614,8 @@ namespace Rock.WebStartup
                         LogError( startupException, null );
 
                         job.LastStatusMessage = message;
-                        job.LastStatus = errorLoadingStatus;
+                        job.LastStatus = ErrorLoadingStatus;
+                        job.LastStatus = ErrorLoadingStatus;
                         rockContext.SaveChanges();
 
                         var jobHistoryService = new ServiceJobHistoryService( rockContext );
@@ -653,6 +694,21 @@ namespace Rock.WebStartup
         }
 
         /// <summary>
+        /// Shows the debug timing message if running in a development environment
+        /// </summary>
+        /// <param name="message">The message.</param>
+        public static void ShowDebugTimingMessage( string message )
+        {
+            _debugTimingStopwatch.Stop();
+            if ( System.Web.Hosting.HostingEnvironment.IsDevelopmentEnvironment )
+            {
+                Debug.WriteLine( $"[{_debugTimingStopwatch.Elapsed.TotalMilliseconds,5:#} ms] {message}" );
+            }
+
+            _debugTimingStopwatch.Restart();
+        }
+
+        /// <summary>
         /// Logs the startup message to App_Data\Logs
         /// </summary>
         /// <param name="message">The message.</param>
@@ -667,8 +723,6 @@ namespace Rock.WebStartup
         /// <param name="message">The message.</param>
         private static void LogMessage( string message )
         {
-            const string appLogFilename = "RockApplication";
-
             try
             {
                 string directory = AppDomain.CurrentDomain.BaseDirectory;
@@ -679,12 +733,15 @@ namespace Rock.WebStartup
                     Directory.CreateDirectory( directory );
                 }
 
-                string filePath = Path.Combine( directory, appLogFilename + ".csv" );
+                string filePath = Path.Combine( directory, "RockApplication.csv" );
                 string when = RockDateTime.Now.ToString();
 
-                File.AppendAllText( filePath, string.Format( "{0},{1}\r\n", when, message ) );
+                File.AppendAllText( filePath, $"{when},{message}\r\n" );
             }
-            catch { }
+            catch
+            {
+                // ignore
+            }
         }
     }
 }

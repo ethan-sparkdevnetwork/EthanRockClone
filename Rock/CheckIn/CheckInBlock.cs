@@ -545,12 +545,19 @@ namespace Rock.CheckIn
         /// </summary>
         protected virtual void NavigateToHomePage()
         {
-            NavigateToLinkedPage( AttributeKey.HomePage );
+            if ( CurrentCheckInState != null && CurrentCheckInState.MobilleLauncherHomePage != null )
+            {
+                NavigateToPage( CurrentCheckInState.MobilleLauncherHomePage, null );
+            }
+            else
+            {
+                NavigateToLinkedPage( AttributeKey.HomePage );
+            }
         }
 
         /// <summary>
         /// Navigates to next page.
-        /// </summary>
+        /// </summary>6
         protected virtual void NavigateToNextPage()
         {
             NavigateToNextPage( null, false );
@@ -809,6 +816,11 @@ namespace Rock.CheckIn
             if ( CurrentCheckInState == null && this.LocalDeviceConfig.CurrentKioskId.HasValue )
             {
                 CurrentCheckInState = new CheckInState( this.LocalDeviceConfig.CurrentKioskId.Value, this.LocalDeviceConfig.CurrentCheckinTypeId, this.LocalDeviceConfig.CurrentGroupTypeIds );
+            }
+
+            if ( CurrentCheckInState.MobilleLauncherHomePage != null )
+            {
+                DisableIdleRedirectBlocks( true );
             }
         }
     }

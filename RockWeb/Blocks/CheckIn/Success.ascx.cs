@@ -207,6 +207,20 @@ namespace RockWeb.Blocks.CheckIn
                         var successLavaTemplate = CurrentCheckInState.CheckInType.SuccessLavaTemplate;
                         lCheckinResultsHtml.Text = successLavaTemplate.ResolveMergeFields( mergeFields );
 
+                        if ( CurrentCheckInState.MobilleLauncherHomePage != null )
+                        {
+                            var fakeAttendanceCheckInSessionGuidData = "CPL+" + string.Join( ",", CurrentCheckInState.CheckIn.CurrentFamily.AttendanceIds );
+
+                            var attendanceCheckInSessionCookie = new System.Web.HttpCookie( "AttendanceCheckInSession" );
+                            attendanceCheckInSessionCookie.Expires = RockDateTime.Now.AddSeconds( 60 );
+                            attendanceCheckInSessionCookie.Value = fakeAttendanceCheckInSessionGuidData;
+                            this.Page.Response.Cookies.Set( attendanceCheckInSessionCookie );
+
+                            //lCheckinResultsHtml.Text += "<div class='center-block'><img class='img-responsive center-block' src='https://api.qrserver.com/v1/create-qr-code/?size=250x250&amp;data=" + fakeAttendanceCheckInSessionGuidData + "' alt=''></div>";
+                            lCheckinResultsHtml.Text += "<div class='center-block'><img class='img-responsive center-block' src='https://api.qrserver.com/v1/create-qr-code/?size=250x250&amp;data=Example' alt=''></div>";
+                            DisableIdleRedirectBlocks( true );
+                        }
+
                     }
                     catch ( Exception ex )
                     {

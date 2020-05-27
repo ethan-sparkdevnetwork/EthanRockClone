@@ -23,6 +23,7 @@ using System.Data.Entity;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Web;
 using System.Web.UI;
 using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
@@ -66,6 +67,23 @@ namespace Rock.Web.UI.Controls
         #endregion
 
         #region Properties
+
+        /// <summary>
+        /// Gets or sets a value indicating whether [business].
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [business]; otherwise, <c>false</c>.
+        /// </value>
+        [
+        Category( "Appearance" ),
+        DefaultValue( true ),
+        Description( "Is Business" )
+        ]
+        public virtual bool IsBusiness
+        {
+            get { return this.ViewState["IsBusiness"] as bool? ?? false; }
+            set { ViewState["IsBusiness"] = value; }
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether [delete enabled].
@@ -194,6 +212,33 @@ namespace Rock.Web.UI.Controls
             set
             {
                 base.EmptyDataText = value;
+            }
+        }
+
+        private bool _showPaginationText = true;
+        /// <summary>
+        /// Gets or sets a value indicating whether the grid should show pagination text.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> show pagination text; otherwise don't default is true, <c>false</c>.
+        /// </value>
+        public bool ShowPaginationText
+        {
+            get
+            {
+                return _showPaginationText;
+            }
+            set
+            {
+                _showPaginationText = value;
+                if ( PagerTemplate != null )
+                {
+                    var pageTemplate = PagerTemplate as PagerTemplate;
+                    if(pageTemplate != null )
+                    {
+                        pageTemplate.ShowPaginationText = value;
+                    }
+                }
             }
         }
 
@@ -384,6 +429,18 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
+        /// Gets or sets the custom action configs.
+        /// </summary>
+        public List<CustomActionConfig> CustomActionConfigs
+        {
+            get => ViewState["CustomActionConfigs"]
+                .ToStringSafe()
+                .FromJsonOrNull<List<CustomActionConfig>>() ?? 
+                new List<CustomActionConfig>();
+            set => ViewState["CustomActionConfigs"] = value.ToJson();
+        }
+
+        /// <summary>
         /// Gets or sets the Person Id field.
         /// Default is NULL, which indicates that this grid does not reference Person records
         /// </summary>
@@ -406,6 +463,32 @@ namespace Rock.Web.UI.Controls
             set
             {
                 ViewState["PersonIdField"] = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the entity identifier field.
+        /// </summary>
+        /// <value>
+        /// The entity identifier field.
+        /// </value>
+        public string EntityIdField
+        {
+            get
+            {
+                var entityIdField = ViewState["EntityIdField"].ToStringSafe();
+
+                if ( entityIdField.IsNullOrWhiteSpace() )
+                {
+                    entityIdField = DataKeyNames?.FirstOrDefault();
+                }
+
+                return entityIdField.IsNullOrWhiteSpace() ? "Id" : entityIdField;
+            }
+
+            set
+            {
+                ViewState["EntityIdField"] = value;
             }
         }
 
@@ -493,6 +576,18 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
+        /// Gets or sets the business merge page route.
+        /// </summary>
+        /// <value>
+        /// The merge page route.
+        /// </value>
+        public virtual string BusinessMergePageRoute
+        {
+            get { return ViewState["BusinessMergePageRoute"] as string ?? "~/BusinessMerge/{0}"; }
+            set { ViewState["BusinessMergePageRoute"] = value; }
+        }
+
+        /// <summary>
         /// Gets or sets the bulk update page route.
         /// </summary>
         /// <value>
@@ -502,6 +597,19 @@ namespace Rock.Web.UI.Controls
         {
             get { return ViewState["BulkUpdatePageRoute"] as string ?? "~/BulkUpdate/{0}"; }
             set { ViewState["BulkUpdatePageRoute"] = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets the launch workflow page route.
+        /// Example: "~/LaunchWorkflows/{0}" where {0} will be formatted with the EntitySetId
+        /// </summary>
+        /// <value>
+        /// The launch workflow page route.
+        /// </value>
+        public virtual string DefaultLaunchWorkflowPageRoute
+        {
+            get => ViewState["DefaultLaunchWorkflowPageRoute"] as string ?? "~/LaunchWorkflows/{0}";
+            set => ViewState["DefaultLaunchWorkflowPageRoute"] = value;
         }
 
         /// <summary>
@@ -663,6 +771,41 @@ namespace Rock.Web.UI.Controls
             set { ViewState["ShowActionRow"] = value; }
         }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the default workflow launch button or any custom actions
+        /// should be shown.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [show workflow or custom action buttons]; otherwise, <c>false</c>.
+        /// </value>
+        [
+        Category( "Appearance" ),
+        DefaultValue( true ),
+        Description( "Show Workflow or Custom Action Buttons" )
+        ]
+        public virtual bool ShowWorkflowOrCustomActionButtons
+        {
+            get => ViewState["ShowWorkflowOrCustomActionButtons"] as bool? ?? true;
+            set => ViewState["ShowWorkflowOrCustomActionButtons"] = value;
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the default workflow launch control is visible. 
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [enable default launch workflow]; otherwise, <c>false</c>.
+        /// </value>
+        [
+        Category( "Appearance" ),
+        DefaultValue( true ),
+        Description( "Enable Default Launch Workflow Button" )
+        ]
+        public virtual bool EnableDefaultLaunchWorkflow
+        {
+            get => ViewState["EnableDefaultLaunchWorkflow"].ToStringSafe().AsBoolean( true );
+            set => ViewState["EnableDefaultLaunchWorkflow"] = value;
+        }
+
         #endregion
 
         #endregion
@@ -719,6 +862,8 @@ namespace Rock.Web.UI.Controls
             _pagerTemplate.NavigateClick += pagerTemplate_NavigateClick;
             _pagerTemplate.ItemsPerPageClick += pagerTemplate_ItemsPerPageClick;
 
+            _pagerTemplate.ShowPaginationText = ShowPaginationText;
+
             this.PagerTemplate = _pagerTemplate;
 
             this.Sorting += Grid_Sorting;
@@ -726,6 +871,7 @@ namespace Rock.Web.UI.Controls
             this.Actions.PersonMergeClick += Actions_PersonMergeClick;
             this.Actions.BulkUpdateClick += Actions_BulkUpdateClick;
             this.Actions.CommunicateClick += Actions_CommunicateClick;
+            this.Actions.WorkflowOrCustomActionClick += Actions_WorkflowOrCustomActionClick;
             this.Actions.ExcelExportClick += Actions_ExcelExportClick;
             this.Actions.MergeTemplateClick += Actions_MergeTemplateClick;
 
@@ -871,7 +1017,7 @@ $('#{this.ClientID} .grid-select-cell').on( 'click', function (event) {{
             // render script for popovers
             string popoverScript = @"
     $('.grid-table tr').tooltip({html: true, container: 'body', delay: { show: 500, hide: 100 }});
-    $('.grid-table tr').click( function(){ $(this).tooltip('hide'); });;
+    $('.grid-table tr').on('click', function(){ $(this).tooltip('hide'); });;
 ";
 
             ScriptManager.RegisterStartupScript( this, this.GetType(), "grid-popover", popoverScript, true );
@@ -1589,7 +1735,14 @@ $('#{this.ClientID} .grid-select-cell').on( 'click', function (event) {{
             int? entitySetId = GetPersonEntitySet( e );
             if ( entitySetId.HasValue )
             {
-                Page.Response.Redirect( string.Format( PersonMergePageRoute, entitySetId.Value ), false );
+                if ( IsBusiness )
+                {
+                    Page.Response.Redirect( string.Format( BusinessMergePageRoute, entitySetId.Value ), false );
+                }
+                else
+                {
+                    Page.Response.Redirect( string.Format( PersonMergePageRoute, entitySetId.Value ), false );
+                }
                 Context.ApplicationInstance.CompleteRequest();
             }
             else
@@ -1757,6 +1910,48 @@ $('#{this.ClientID} .grid-select-cell').on( 'click', function (event) {{
                     this.ShowModalAlertMessage( "Grid has no recipients", ModalAlertType.Warning );
                 }
             }
+        }
+
+        /// <summary>
+        /// Handles the WorkflowOrCustomActionClick event of the Actions control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void Actions_WorkflowOrCustomActionClick( object sender, EventArgs e )
+        {
+            // disable paging if no specific keys where selected (or if no select option is shown)
+            var selectAll = !SelectedKeys.Any();
+            RebindGrid( e, selectAll );
+
+            var entitySetId = GetEntitySetFromGrid( e );
+
+            if(!entitySetId.HasValue)
+            {
+                ShowModalAlertMessage( $"Grid has no {RowItemText.Pluralize()}", ModalAlertType.Warning );
+                return;
+            }
+
+            var routeTemplate = GetRouteFromEventArgs( e ) ?? DefaultLaunchWorkflowPageRoute;
+            string url;
+
+            // If the user passed a format-able string like "/Launch/{0}", then fill in the entity set id
+            // accordingly. Otherwise, add the entity set id as a query param.
+            if ( routeTemplate.Contains( "{0}" ) )
+            {
+                url = string.Format( routeTemplate, entitySetId.Value );
+            }
+            else
+            {
+                var uri = new Uri( Page.Request.Url, routeTemplate );
+                var uriBuilder = new UriBuilder( uri.AbsoluteUri );
+                var paramValues = HttpUtility.ParseQueryString( uriBuilder.Query );
+                paramValues.Add( "EntitySetId", entitySetId.Value.ToString() );
+                uriBuilder.Query = paramValues.ToString();
+                url = uriBuilder.Uri.PathAndQuery;
+            }
+
+            Page.Response.Redirect( url, false );
+            Context.ApplicationInstance.CompleteRequest();
         }
 
         /// <summary>
@@ -2585,6 +2780,23 @@ $('#{this.ClientID} .grid-select-cell').on( 'click', function (event) {{
         #region Methods
 
         /// <summary>
+        /// Gets the route from event arguments.
+        /// </summary>
+        /// <param name="eventArgs">The <see cref="EventArgs"/> instance containing the event data.</param>
+        /// <returns></returns>
+        private string GetRouteFromEventArgs( EventArgs eventArgs )
+        {
+            var commandArgs = eventArgs as CommandEventArgs;
+
+            if ( commandArgs?.CommandName != "Route" || commandArgs.CommandArgument.ToStringSafe().IsNullOrWhiteSpace() )
+            {
+                return null;
+            }
+
+            return commandArgs.CommandArgument.ToString();
+        }
+
+        /// <summary>
         /// Creates grid columns by reflecting on the properties of a type.  If any of the properties
         /// have the [Previewable] attribute, columns will only be created for those properties
         /// </summary>
@@ -2712,7 +2924,7 @@ $('#{this.ClientID} .grid-select-cell').on( 'click', function (event) {{
             {
                 // The ToList() is potentially needed for Linq cases.
                 var keysSelected = SelectedKeys.ToList();
-                string dataKeyColumn = this.DataKeyNames.FirstOrDefault() ?? "Id";
+                var dataKeyColumn = this.EntityIdField;
 
                 if ( !string.IsNullOrWhiteSpace( dataKeyColumn ) && this.DataSourceAsDataTable != null )
                 {
@@ -3111,7 +3323,7 @@ $('#{this.ClientID} .grid-select-cell').on( 'click', function (event) {{
             }
 
             bool isPersonEntitySet = this.EntityTypeId == EntityTypeCache.GetId<Rock.Model.Person>();
-            string dataKeyField = this.DataKeyNames.FirstOrDefault() ?? "Id";
+            var dataKeyField = EntityIdField;
             if ( isPersonEntitySet && !string.IsNullOrEmpty( this.PersonIdField ) )
             {
                 dataKeyField = this.PersonIdField;
@@ -3237,19 +3449,14 @@ $('#{this.ClientID} .grid-select-cell').on( 'click', function (event) {{
                 }
             }
 
-            string entityIdColumn;
+            var entityIdColumn = EntityIdField;
             bool isPersonEntityTypeDifferentToKeys = false;
             if ( entityTypeId.HasValue && entityTypeId.Value == EntityTypeCache.GetId<Model.Person>() )
             {
-                entityIdColumn = this.PersonIdField ?? "Id";
                 if ( this.DataKeyNames.Any() && this.DataKeyNames.First() != entityIdColumn )
                 {
                     isPersonEntityTypeDifferentToKeys = true;
                 }
-            }
-            else
-            {
-                entityIdColumn = this.DataKeyNames.FirstOrDefault() ?? "Id";
             }
 
             PropertyInfo idProp = dataSourceObjectType.GetProperty( entityIdColumn );
@@ -4118,6 +4325,8 @@ $('#{this.ClientID} .grid-select-cell').on( 'click', function (event) {{
         /// </value>
         internal HtmlGenericControl NavigationPanel { get; set; }
 
+        internal bool ShowPaginationText { get; set; }
+
         /// <summary>
         /// Gets or sets the page link list item.
         /// </summary>
@@ -4341,7 +4550,7 @@ $('#{this.ClientID} .grid-select-cell').on( 'click', function (event) {{
             }
 
             // Set Item Count
-            if ( itemCountDisplay != null )
+            if ( itemCountDisplay != null && ShowPaginationText )
             {
                 itemCountDisplay.Text = string.Format( "{0:N0} {1}", itemCount, itemCount == 1 ? rowItemText : rowItemText.Pluralize() );
             }

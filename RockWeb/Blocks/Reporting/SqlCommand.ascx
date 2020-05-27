@@ -6,8 +6,8 @@
         <div class="panel panel-block">
             <div class="panel-heading">
                 <h1 class="panel-title"><i class="fa fa-exclamation-triangle"></i>SQL Command</h1>
-
             </div>
+
             <div class="panel-body">
                 <fieldset>
                     <Rock:CodeEditor ID="tbQuery" runat="server" Label="SQL Text" Height="400" EditorMode="Sql" EditorTheme="Rock" Help="The SQL query or stored procedure name to execute." />
@@ -25,7 +25,6 @@
                     <Rock:NotificationBox ID="nbError" runat="server" Heading="Error" Title="SQL Error!" NotificationBoxType="Danger" Visible="false" />
                 </div>
 
-
                 <asp:Repeater ID="rptGrids" runat="server" OnItemDataBound="rptGrids_ItemDataBound">
                     <ItemTemplate>
                         <asp:Literal ID="lDataTableTitle" runat="server" />
@@ -35,6 +34,7 @@
                     </ItemTemplate>
                 </asp:Repeater>
 
+                <p id="pQueryTime" runat="server" class="text-right margin-r-md" visible="false" />
             </div>
         </div>
 

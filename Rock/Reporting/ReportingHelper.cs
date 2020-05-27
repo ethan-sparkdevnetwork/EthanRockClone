@@ -16,6 +16,7 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Web;
 using System.Web.UI;
@@ -99,6 +100,7 @@ namespace Rock.Reporting
                     return;
                 }
 
+                Stopwatch stopwatch = Stopwatch.StartNew();
                 gReport.EntityTypeId = report.EntityTypeId;
 
                 bool isPersonDataSet = report.EntityTypeId == EntityTypeCache.Get( typeof( Rock.Model.Person ), true, rockContext ).Id;
@@ -375,6 +377,13 @@ namespace Rock.Reporting
                     }
 
                     gReport.DataBind();
+                    stopwatch.Stop();
+
+                    if ( report.DataViewId.HasValue )
+                    {
+                        DataViewService.AddRunDataViewTransaction( report.DataViewId.Value );
+                    }
+                    ReportService.AddRunReportTransaction( report.Id, Convert.ToInt32( stopwatch.Elapsed.TotalMilliseconds ) );
                 }
                 catch ( Exception ex )
                 {
@@ -400,7 +409,7 @@ namespace Rock.Reporting
                         {
                             errors.Add( exception.Message );
                             exception = exception.InnerException;
-                        }
+                        } 
                     }
                 }
 
@@ -417,7 +426,7 @@ namespace Rock.Reporting
         /// <param name="phFilters">The ph filters.</param>
         /// <returns></returns>
         [RockObsolete( "1.8" )]
-        [Obsolete()]
+        [Obsolete("", true)]
         public static DataViewFilterOverrides GetFilterOverridesFromControls( PlaceHolder phFilters )
         {
             return GetFilterOverridesFromControls( null, phFilters );

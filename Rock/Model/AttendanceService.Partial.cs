@@ -126,12 +126,13 @@ namespace Rock.Model
             // If an attendance record doesn't exist for the occurrence, add a new record
             if ( attendance == null )
             {
-                attendance = ( ( RockContext ) Context ).Attendances.Create();
+                attendance = new Attendance
                 {
-                    attendance.Occurrence = occurrence;
-                    attendance.OccurrenceId = occurrence.Id;
-                    attendance.PersonAliasId = personAliasId;
+                    Occurrence = occurrence,
+                    OccurrenceId = occurrence.Id,
+                    PersonAliasId = personAliasId
                 };
+
                 Add( attendance );
             }
 
@@ -1692,7 +1693,12 @@ namespace Rock.Model
         {
             if ( attendancesImport == null )
             {
-                throw new Exception( "AttendancesImport must be assigned a value." );
+                throw new ArgumentNullException( "AttendancesImport must be assigned a value." );
+            }
+
+            if ( attendancesImport.Attendances.Any( a => !a.PersonAliasId.HasValue && !a.PersonId.HasValue ) )
+            {
+                throw new Exception( "All Attendance records must have either a PersonId or PersonAliasId assigned." );
             }
 
             var attendanceImportList = attendancesImport.Attendances;
@@ -1805,7 +1811,6 @@ namespace Rock.Model
                  return attendance;
              } ).ToList();
 
-// NOTE: This can insert 100,000 records in less than 10 seconds, but the documentation will recommend a limit of 1000 records at a time
             rockContext.BulkInsert( attendancesToBulkInsert );
         }
 

@@ -226,6 +226,66 @@ namespace Rock.Model
 
         private bool _isActive = true;
 
+        /// <summary>
+        /// Gets or sets the interaction custom 1 label.
+        /// </summary>
+        /// <value>
+        /// The interaction custom 1 label.
+        /// </value>
+        [DataMember]
+        [MaxLength( 100 )]
+        public string InteractionCustom1Label { get; set; }
+
+        /// <summary>
+        /// Gets or sets the interaction custom 2 label.
+        /// </summary>
+        /// <value>
+        /// The interaction custom 2 label.
+        /// </value>
+        [DataMember]
+        [MaxLength( 100 )]
+        public string InteractionCustom2Label { get; set; }
+
+        /// <summary>
+        /// Gets or sets the interaction custom indexed 1 label.
+        /// </summary>
+        /// <value>
+        /// The interaction custom indexed 1 label.
+        /// </value>
+        [DataMember]
+        [MaxLength( 100 )]
+        public string InteractionCustomIndexed1Label { get; set; }
+
+        /// <summary>
+        /// Gets or sets the component custom 1 label.
+        /// </summary>
+        /// <value>
+        /// The component custom 1 label.
+        /// </value>
+        [DataMember]
+        [MaxLength( 100 )]
+        public string ComponentCustom1Label { get; set; }
+
+        /// <summary>
+        /// Gets or sets the component custom 2 label.
+        /// </summary>
+        /// <value>
+        /// The component custom 2 label.
+        /// </value>
+        [DataMember]
+        [MaxLength( 100 )]
+        public string ComponentCustom2Label { get; set; }
+
+        /// <summary>
+        /// Gets or sets the component custom indexed 1 label.
+        /// </summary>
+        /// <value>
+        /// The component custom indexed 1 label.
+        /// </value>
+        [DataMember]
+        [MaxLength( 100 )]
+        public string ComponentCustomIndexed1Label { get; set; }
+
         #endregion
 
         #region Virtual Properties

@@ -153,7 +153,7 @@ namespace Rock.Security
         /// Load the static Authorizations object
         /// </summary>
         [RockObsolete( "1.8" )]
-        [Obsolete( "Use Get() Instead." )]
+        [Obsolete( "Use Get() Instead.", true )]
         public static bool Load()
         {
             Get();
@@ -256,7 +256,7 @@ namespace Rock.Security
         /// <param name="entityId">The entity identifier.</param>
         /// <param name="rockContext">The rock context.</param>
         [RockObsolete( "1.8" )]
-        [Obsolete( "Use RefreshEntity() instead." )]
+        [Obsolete( "Use RefreshEntity() instead.", true )]
         public static void ReloadEntity( int entityTypeId, int entityId, RockContext rockContext = null )
         {
             RefreshEntity( entityTypeId, entityId, rockContext );
@@ -341,7 +341,7 @@ namespace Rock.Security
         /// <param name="entityId">The entity identifier.</param>
         /// <param name="action">The action.</param>
         [RockObsolete( "1.8" )]
-        [Obsolete( "Use RefreshAction() instead." )]
+        [Obsolete( "Use RefreshAction() instead.", true )]
         public static void ReloadAction( int entityTypeId, int entityId, string action )
         {
             RefreshAction( entityTypeId, entityId, action );
@@ -386,7 +386,7 @@ namespace Rock.Security
         /// <param name="action">The action.</param>
         /// <param name="rockContext">The rock context.</param>
         [RockObsolete( "1.8" )]
-        [Obsolete( "Use RefreshAction() instead." )]
+        [Obsolete( "Use RefreshAction() instead.", true )]
         public static void ReloadAction( int entityTypeId, int entityId, string action, RockContext rockContext )
         {
             RefreshAction( entityTypeId, entityId, action, rockContext );
@@ -705,7 +705,7 @@ namespace Rock.Security
         /// Clear the static Authorizations object
         /// </summary>
         [RockObsolete( "1.8" )]
-        [Obsolete( "Use Clear() instead." )]
+        [Obsolete( "Use Clear() instead.", true )]
         public static void Flush()
         {
             Clear();

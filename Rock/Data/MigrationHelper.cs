@@ -295,6 +295,19 @@ namespace Rock.Data
         /// <param name="guid">The unique identifier.</param>
         public void UpdateMobileBlockType( string name, string description, string entityName, string guid )
         {
+            UpdateMobileBlockType( name, description, entityName, "Mobile", guid );
+        }
+
+        /// <summary>
+        /// Updates the type of the mobile block.
+        /// </summary>
+        /// <param name="name">The name.</param>
+        /// <param name="description">The description.</param>
+        /// <param name="entityName">Name of the entity.</param>
+        /// <param name="category">The category.</param>
+        /// <param name="guid">The unique identifier.</param>
+        public void UpdateMobileBlockType( string name, string description, string entityName, string category, string guid )
+        {
             Migration.Sql( $@"
                 DECLARE @entityTypeId INT = (SELECT [Id] FROM [EntityType] WHERE [Name] = '{entityName}')
 
@@ -307,7 +320,7 @@ namespace Rock.Data
                 BEGIN
 	                UPDATE [BlockType]
 	                SET [IsSystem] = 1,
-		                [Category] = 'Mobile',
+		                [Category] = '{category}',
 		                [Name] = '{name}',
 		                [Description] = '{description.Replace( "'", "''" )}',
 		                [Guid] = '{guid.ToUpper()}'
@@ -2565,6 +2578,26 @@ END" );
         /// <param name="key">The key.  Defaults to Name without Spaces. If this is a core attribute for the entity, specify the key with a 'core.' prefix</param>
         public void UpdateEntityAttribute( string entityTypeName, string fieldTypeGuid, string entityTypeQualifierColumn, string entityTypeQualifierValue, string name, string description, int order, string defaultValue, string guid, string key = null )
         {
+            UpdateEntityAttribute( entityTypeName, fieldTypeGuid, entityTypeQualifierColumn, entityTypeQualifierValue, name, description, order, defaultValue, guid, key, null );
+        }
+
+        /// <summary>
+        /// Updates the Entity Attribute for the given EntityType, FieldType, and name (key).
+        /// otherwise it inserts a new record.
+        /// </summary>
+        /// <param name="entityTypeName">Name of the entity type.</param>
+        /// <param name="fieldTypeGuid">The field type unique identifier.</param>
+        /// <param name="entityTypeQualifierColumn">The entity type qualifier column.</param>
+        /// <param name="entityTypeQualifierValue">The entity type qualifier value.</param>
+        /// <param name="name">The name.</param>
+        /// <param name="description">The description.</param>
+        /// <param name="order">The order.</param>
+        /// <param name="defaultValue">The default value.</param>
+        /// <param name="guid">The unique identifier.</param>
+        /// <param name="key">The key.  Defaults to Name without Spaces. If this is a core attribute for the entity, specify the key with a 'core.' prefix</param>
+        /// <param name="isRequired"></param>
+        public void UpdateEntityAttribute( string entityTypeName, string fieldTypeGuid, string entityTypeQualifierColumn, string entityTypeQualifierValue, string name, string description, int order, string defaultValue, string guid, string key, bool? isRequired )
+        {
             EnsureEntityTypeExists( entityTypeName );
 
             if ( string.IsNullOrWhiteSpace( key ) )
@@ -2593,7 +2626,8 @@ END" );
                         [Description] = '{4}',
                         [Order] = {5},
                         [DefaultValue] = '{6}',
-                        [Guid] = '{7}'
+                        [Guid] = '{7}',
+                        [IsRequired] = {10}
                     WHERE [EntityTypeId] = @EntityTypeId
                     AND [EntityTypeQualifierColumn] = '{8}'
                     AND [EntityTypeQualifierValue] = '{9}'
@@ -2609,7 +2643,7 @@ END" );
                     VALUES(
                         1,@FieldTypeId,@EntityTypeid,'{8}','{9}',
                         '{2}','{3}','{4}',
-                        {5},0,'{6}',0,0,
+                        {5},0,'{6}',0,{11},
                         '{7}')
                 END
 ",
@@ -2622,7 +2656,11 @@ END" );
                     defaultValue?.Replace( "'", "''" ) ?? string.Empty,
                     guid,
                     entityTypeQualifierColumn,
-                    entityTypeQualifierValue )
+                    entityTypeQualifierValue,
+                    isRequired.HasValue ?
+                        ( isRequired.Value ? "1" : "0" ) :
+                        "[IsRequired]",
+                    isRequired == true ? "1" : "0" )
             );
         }
 
@@ -3131,7 +3169,10 @@ END" );
         }
 
         /// <summary>
-        /// Adds the attribute qualifier.
+        /// Adds or updates the attribute qualifier.
+        /// IF an existing AttributeQualifier is found by guid Key and Value are updated.
+        /// If an existing AttributeQualifier is found by AttributeId and Key, Guid and Value are updated.
+        /// Any qualifier inserted or updated by this method will also set IsSystem to true.
         /// </summary>
         /// <param name="attributeGuid">The attribute unique identifier.</param>
         /// <param name="key">The key.</param>
@@ -3139,31 +3180,28 @@ END" );
         /// <param name="guid">The unique identifier.</param>
         public void AddAttributeQualifier( string attributeGuid, string key, string value, string guid )
         {
-            Migration.Sql( string.Format( @"
+            string sql = $@"
+                DECLARE @AttributeId INT = (SELECT [Id] FROM [Attribute] WHERE [Guid] = '{attributeGuid}')
 
-                DECLARE @AttributeId int
-                SET @AttributeId = (SELECT [Id] FROM [Attribute] WHERE [Guid] = '{0}')
-
-                IF NOT EXISTS(Select * FROM [AttributeQualifier] WHERE [Guid] = '{3}')
+                IF NOT EXISTS(SELECT * FROM [AttributeQualifier] WHERE [Guid] = '{guid}')
                 BEGIN
-                    INSERT INTO [AttributeQualifier] (
-                        [IsSystem],[AttributeId],[Key],[Value],[Guid])
-                    VALUES(
-                        1,@AttributeId,'{1}','{2}','{3}')
+	                -- It's possible that the qualifier exists with a different GUID so also check for AttributeId and Key
+	                DECLARE @guid UNIQUEIDENTIFIER = (SELECT [Guid] FROM [AttributeQualifier] WHERE AttributeId = @AttributeId AND [Key] = '{key}')
+	                IF @guid IS NOT NULL
+	                BEGIN
+		                UPDATE [AttributeQualifier] SET [IsSystem] = 1, [Guid] = '{guid}', [Value] = '{value}' WHERE [Guid] = @guid
+	                END
+	                ELSE BEGIN
+		                INSERT INTO [AttributeQualifier] ([IsSystem], [AttributeId], [Key], [Value], [Guid])
+		                VALUES(1, @AttributeId, '{key}', '{value}', '{guid}')
+	                END
                 END
                 ELSE
                 BEGIN
-                    UPDATE [AttributeQualifier] SET
-                        [Key] = '{1}',
-                        [Value] = '{2}'
-                    WHERE [Guid] = '{3}'
-                END
-",
-                    attributeGuid, // {0}
-                    key, // {1}
-                    value, // {2}
-                    guid ) // {3}
-            );
+                    UPDATE [AttributeQualifier] SET [IsSystem] = 1, [Key] = '{key}', [Value] = '{value}' WHERE [Guid] = '{guid}'
+                END";
+
+            Migration.Sql( sql );
         }
 
         /// <summary>

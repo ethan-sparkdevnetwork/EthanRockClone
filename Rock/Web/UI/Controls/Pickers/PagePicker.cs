@@ -175,17 +175,17 @@ namespace Rock.Web.UI.Controls
         {
             string scriptFormat = @"
 
-                $('#{0}').click(function () {{
+                $('#{0}').on('click', function () {{
                     $('#page-route-picker_{3}').find('.js-page-route-picker-menu').toggle(0, function () {{
                         Rock.dialogs.updateModalScrollBar('page-route-picker_{3}');
                     }});
                 }});
 
-                $('#{1}').click(function () {{
+                $('#{1}').on('click', function () {{
                     $(this).closest('.picker-menu').slideUp();
                 }});
 
-                $('#{2}').click(function () {{
+                $('#{2}').on('click', function () {{
                     $(this).closest('.picker-menu').slideUp();
                 }});";
 

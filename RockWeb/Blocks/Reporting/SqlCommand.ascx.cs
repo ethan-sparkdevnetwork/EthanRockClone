@@ -135,6 +135,7 @@ FROM
         {
             nbSuccess.Visible = false;
             nbError.Visible = false;
+            pQueryTime.Visible = false;
             rptGrids.Visible = false;
 
             string query = tbQuery.Text;
@@ -165,19 +166,29 @@ FROM
                     {
                         rptGrids.Visible = true;
 
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
                         DataSet dataSet = DbService.GetDataSet( query, CommandType.Text, null, GetAttributeValue( "DatabaseTimeout" ).AsIntegerOrNull() ?? 180 );
+
+                        sw.Stop();
 
                         rptGrids.DataSource = dataSet.Tables.OfType<DataTable>().ToList();
                         rptGrids.DataBind();
+
+                        pQueryTime.InnerText = string.Format( "{0} completed in {1:N0}ms", "Query".PluralizeIf(dataSet.Tables.Count != 1), sw.ElapsedMilliseconds );
+                        pQueryTime.Visible = true;
                     }
                     else
                     {
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
                         int rows = DbService.ExecuteCommand( query, commandTimeout: GetAttributeValue( "DatabaseTimeout" ).AsIntegerOrNull() ?? 180 );
+                        sw.Stop();
+
                         if ( rows < 0 )
                         {
                             rows = 0;
                         }
 
+                        nbSuccess.Title = string.Format( "Command completed successfully in {0:N0}ms.", sw.ElapsedMilliseconds );
                         nbSuccess.Text = string.Format( "Row(s) affected: {0}", rows );
                         nbSuccess.Visible = true;
                     }
@@ -280,11 +291,6 @@ FROM
 
             gReport.DataSource = GetSortedView( dataTable, gReport );
             gReport.DataBind();
-        }
-
-        protected void ddlCommandHistory_SelectedIndexChanged( object sender, EventArgs e )
-        {
-
         }
     }
 }

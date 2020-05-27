@@ -44,6 +44,9 @@ namespace RockWeb.Blocks.Communication
     [DisplayName( "Communication Entry Wizard" )]
     [Category( "Communication" )]
     [Description( "Used for creating and sending a new communications such as email, SMS, etc. to recipients." )]
+
+    #region Block Attributes
+
     [SecurityAction( Authorization.APPROVE, "The roles and/or users that have access to approve new communications." )]
 
     [BinaryFileTypeField( "Image Binary File Type",
@@ -126,6 +129,7 @@ namespace RockWeb.Blocks.Communication
         DefaultBooleanValue = false,
         Order = 12 )]
 
+    #endregion Block Attributes
     public partial class CommunicationEntryWizard : RockBlock, IDetailBlock
     {
         #region Attribute Keys
@@ -348,9 +352,9 @@ namespace RockWeb.Blocks.Communication
                 {
                     if ( !communication.CommunicationTemplateId.HasValue || !communication.CommunicationTemplate.SupportsEmailWizard() )
                     {
-                        // If this communication was previously created, but doesn't have a CommunicationTemplateId or uses a template that doesn't support the EmailWizard, 
+                        // If this communication was previously created, but doesn't have a CommunicationTemplateId or uses a template that doesn't support the EmailWizard,
                         // it is a communication (or a copy of a communication) that was created using the 'Simple Editor' or the editor prior to v7.
-                        // So, if they use the wizard, the main Html Content will be reset when they get to the Select Template step
+                        // So, if they use the wizard, the main HTML Content will be reset when they get to the Select Template step
                         // since the wizard requires that the communication uses a Template that supports the Email Wizard.
                         // So, if this is the case, warn them and explain that they can continue with the wizard but start over on the content,
                         // or to use the 'Use Simple Editor' to keep the content, but not use the wizard
@@ -435,7 +439,7 @@ namespace RockWeb.Blocks.Communication
             {
                 var template = new CommunicationTemplateService( rockContext ).Get( templateGuid.Value );
 
-                // NOTE: Only set the selected template if the user has auth for this template 
+                // NOTE: Only set the selected template if the user has auth for this template
                 // and the template supports the Email Wizard
                 if ( template != null && template.IsAuthorized( Rock.Security.Authorization.VIEW, this.CurrentPerson ) && template.SupportsEmailWizard() )
                 {
@@ -477,7 +481,7 @@ namespace RockWeb.Blocks.Communication
 
             tbEmailSubject.Text = communication.Subject;
 
-            //// NOTE: tbEmailPreview will be populated by parsing the Html of the Email/Template
+            //// NOTE: tbEmailPreview will be populated by parsing the HTML of the Email/Template
 
             hfEmailAttachedBinaryFileIds.Value = communication.GetAttachmentBinaryFileIds( CommunicationType.Email ).AsDelimited( "," );
             UpdateEmailAttachedFiles( false );
@@ -1338,7 +1342,7 @@ namespace RockWeb.Blocks.Communication
             //  set the subject from the template even if it is null so we don't accidentally keep a subject doesn't make sense for the newly selected template
             tbEmailSubject.Text = communicationTemplate.Subject;
 
-            // if this communication already has an Email Content specified, since they picked (or re-picked) a template, 
+            // if this communication already has an Email Content specified, since they picked (or re-picked) a template,
             // we'll have to start over on the EmailEditorHtml since the content is dependent on the template
             hfEmailEditorHtml.Value = communicationTemplate.Message.ResolveMergeFields( Rock.Lava.LavaHelper.GetCommonMergeFields( null ) );
 
@@ -1483,7 +1487,7 @@ namespace RockWeb.Blocks.Communication
         {
             SendTestCommunication( EntityTypeCache.Get( Rock.SystemGuid.EntityType.COMMUNICATION_MEDIUM_EMAIL.AsGuid() ).Id, nbEmailTestResult );
 
-            // make sure the email designer keeps the html source that was there
+            // make sure the email designer keeps the HTML source that was there
             ifEmailDesigner.Attributes["srcdoc"] = hfEmailEditorHtml.Value;
 
             // upnlContent has UpdateMode = Conditional, so we have to update manually
@@ -1638,7 +1642,7 @@ namespace RockWeb.Blocks.Communication
                     {
                         try
                         {
-                            // make sure we delete the test communication record we created to send the test 
+                            // make sure we delete the test communication record we created to send the test
                             if ( communicationService != null && testCommunication != null )
                             {
                                 var testCommunicationId = testCommunication.Id;
@@ -1768,7 +1772,7 @@ namespace RockWeb.Blocks.Communication
 
                 string publicAppRoot = GlobalAttributesCache.Get().GetValue( "PublicApplicationRoot" ).EnsureTrailingForwardslash();
 
-                // Add Html view
+                // Add HTML view
                 // Get the unsubscribe content and add a merge field for it
                 if ( communication.IsBulkCommunication && mediumAttributes.ContainsKey( "UnsubscribeHTML" ) )
                 {

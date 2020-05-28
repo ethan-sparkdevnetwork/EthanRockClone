@@ -601,6 +601,7 @@ namespace Rock.Model
         /// <param name="deviceId">The device identifier.</param>
         /// <param name="includeChildLocations">if set to <c>true</c> [include child locations].</param>
         /// <returns></returns>
+        [Obsolete("Where is this used?")]
         public IEnumerable<Location> GetByDevice( int deviceId, bool includeChildLocations = true )
         {
             string childQuery = includeChildLocations ? @"
@@ -626,6 +627,71 @@ namespace Rock.Model
     SELECT L.* FROM CTE
     INNER JOIN [Location] L ON L.[Id] = CTE.[Id]
             ", deviceId, childQuery ) );
+        }
+
+        /// <summary>
+        /// Gets the location ids by device.
+        /// </summary>
+        /// <param name="deviceId">The device identifier.</param>
+        /// <param name="includeChildLocations">if set to <c>true</c> [include child locations].</param>
+        /// <returns></returns>
+        public IEnumerable<int> GetLocationIdsByDevice( int deviceId, bool includeChildLocations = true )
+        {
+            string childQuery = includeChildLocations ? @"
+
+        UNION ALL
+
+        SELECT [a].Id
+	FROM [Location] [a]
+        INNER JOIN  CTE pcte ON pcte.Id = [a].[ParentLocationId]
+        WHERE [a].[ParentLocationId] IS NOT NULL
+" : "";
+
+            return this.Context.Database.SqlQuery<int>( string.Format(
+                @"
+    WITH CTE AS (
+        SELECT L.Id
+        FROM [DeviceLocation] D
+        INNER JOIN [Location] L ON L.[Id] = D.[LocationId]
+        WHERE D.[DeviceId] = {0}
+{1}
+    )
+
+    SELECT L.Id FROM CTE
+    INNER JOIN [Location] L ON L.[Id] = CTE.[Id]
+            ", deviceId, childQuery ) );
+        }
+
+        /// <summary>
+        /// Gets the device locations.
+        /// </summary>
+        /// <param name="includeChildLocations">if set to <c>true</c> [include child locations].</param>
+        /// <returns></returns>
+        public IEnumerable<Location> GetDeviceLocations( bool includeChildLocations = true )
+        {
+            string childQuery = includeChildLocations ? @"
+
+        UNION ALL
+
+        SELECT [a].Id
+	FROM [Location] [a]
+        INNER JOIN  CTE pcte ON pcte.Id = [a].[ParentLocationId]
+        WHERE [a].[ParentLocationId] IS NOT NULL
+" : "";
+
+            string cteQuery = $@"
+    WITH CTE AS (
+        SELECT L.Id
+        FROM [DeviceLocation] D
+        INNER JOIN [Location] L ON L.[Id] = D.[LocationId]
+{childQuery}
+    )
+
+    SELECT L.* FROM CTE
+    INNER JOIN [Location] L ON L.[Id] = CTE.[Id]
+";
+
+            return ExecuteQuery( cteQuery );
         }
 
         /// <summary>

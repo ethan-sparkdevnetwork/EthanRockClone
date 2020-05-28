@@ -28,13 +28,13 @@ namespace Rock.CheckIn
     public class CheckInState
     {
         /// <summary>
-        /// Gets or sets the home page.
+        /// Gets or sets the mobile launcher home page.
         /// </summary>
         /// <value>
-        /// The home page.
+        /// The mobile launcher home page.
         /// </value>
         [DataMember]
-        public Guid MobilleLauncherHomePage { get; set; }
+        public Guid? MobileLauncherHomePage { get; set; }
 
         /// <summary>
         /// Gets or sets the device id

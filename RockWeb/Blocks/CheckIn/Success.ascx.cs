@@ -207,7 +207,7 @@ namespace RockWeb.Blocks.CheckIn
                         var successLavaTemplate = CurrentCheckInState.CheckInType.SuccessLavaTemplate;
                         lCheckinResultsHtml.Text = successLavaTemplate.ResolveMergeFields( mergeFields );
 
-                        if ( CurrentCheckInState.MobilleLauncherHomePage != null )
+                        if ( CurrentCheckInState.MobileLauncherHomePage.HasValue )
                         {
                             var fakeAttendanceCheckInSessionGuidData = "CPL+" + string.Join( ",", CurrentCheckInState.CheckIn.CurrentFamily.AttendanceIds );
 

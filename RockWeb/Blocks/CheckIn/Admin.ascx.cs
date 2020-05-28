@@ -623,11 +623,6 @@ namespace RockWeb.Blocks.CheckIn
             {
                 using ( var rockContext = new RockContext() )
                 {
-                    var kioskCheckinTypes = new List<GroupType>();
-
-                    var kioskGroupTypes = GetDeviceGroupTypes( ddlKiosk.SelectedValueAsInt() ?? 0, rockContext );
-                    var kioskGroupTypeIds = kioskGroupTypes.Select( t => t.Id ).ToList();
-
                     var groupTypeService = new GroupTypeService( rockContext );
 
                     var checkinTemplateTypeId = DefinedValueCache.GetId( Rock.SystemGuid.DefinedValue.GROUPTYPE_PURPOSE_CHECKIN_TEMPLATE.AsGuid() );

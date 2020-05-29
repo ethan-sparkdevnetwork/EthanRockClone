@@ -28,6 +28,7 @@ using Rock.Attribute;
 using Rock.CheckIn;
 using Rock.Data;
 using Rock.Model;
+using Rock.Reporting.DataSelect.Group;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Workflow.Action.CheckIn;
@@ -105,6 +106,8 @@ namespace RockWeb.Blocks.CheckIn
 
         #region Base Control Methods
 
+
+
         /// <summary>
         /// Adds icons to the configuration area of a <see cref="T:Rock.Model.Block" /> instance.  Can be overridden to
         /// add additional icons
@@ -178,7 +181,7 @@ namespace RockWeb.Blocks.CheckIn
             var configuredAreas_GroupTypeIds = this.GetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds ).SplitDelimitedValues().AsIntegerList();
 
             // Bind Areas (which are Group Types)
-            BindAreas( selectedCheckinType, selectedDevicesIds );
+            BindAreas( selectedDevicesIds );
 
             lbAreas.SetValues( configuredAreas_GroupTypeIds );
 
@@ -189,8 +192,8 @@ namespace RockWeb.Blocks.CheckIn
         /// <summary>
         /// Binds the group types (checkin areas)
         /// </summary>
-        /// <param name="selectedValues">The selected values.</param>
-        private void BindAreas( GroupTypeCache selectedCheckinType, IEnumerable<int> selectedDeviceIds )
+        /// <param name="selectedDeviceIds">The selected device ids.</param>
+        private void BindAreas( IEnumerable<int> selectedDeviceIds )
         {
             // keep any currently selected areas after we repopulate areas for the selectedCheckinType
             var selectedAreaIds = lbAreas.SelectedValues.AsIntegerList();
@@ -216,15 +219,21 @@ namespace RockWeb.Blocks.CheckIn
                    .ToList();
             }
 
-            var locationGroupTypeIds = groupLocationService
+            var locationGroupTypes = groupLocationService
                 .Queryable().AsNoTracking()
                 .Where( l => locationIds.Contains( l.LocationId ) )
                 .Where( gl => gl.Group.GroupType.TakesAttendance )
                 .Select( gl => gl.Group.GroupTypeId )
                 .Distinct()
-                .ToList();
+                .ToList()
+                .Select( a => GroupTypeCache.Get( a ) )
+                .OrderBy( a => a.Order ).ThenBy( a => a.Name ).ToList();
 
-            lbAreas.SetValues( locationGroupTypeIds );
+            lbAreas.Items.Clear();
+            lbAreas.Items.AddRange( locationGroupTypes.Select( a => new ListItem( a.Name, a.Id.ToString() ) ).ToArray() );
+
+            // restore any areas that we selected prior to repopulating the available areas
+            lbAreas.SetValues( selectedAreaIds );
         }
 
         /// <summary>
@@ -281,12 +290,12 @@ namespace RockWeb.Blocks.CheckIn
                 .OrderBy( a => a.Name )
                 .Select( a => new
                 {
-                    a.Guid,
+                    a.Id,
                     a.Name
                 } ).ToList();
 
             lbDevices.Items.Clear();
-            lbDevices.Items.AddRange( devices.Select( a => new ListItem( a.Name, a.Guid.ToString() ) ).ToArray() );
+            lbDevices.Items.AddRange( devices.Select( a => new ListItem( a.Name, a.Id.ToString() ) ).ToArray() );
         }
 
         /// <summary>
@@ -309,6 +318,13 @@ namespace RockWeb.Blocks.CheckIn
         protected override void OnLoad( EventArgs e )
         {
             base.OnLoad( e );
+
+            RockPage.AddScriptLink( "~/Blocks/CheckIn/Scripts/geo-min.js" );
+            RockPage.AddScriptLink( "~/Scripts/CheckinClient/checkin-core.js" );
+
+            ShowDetails();
+
+            
         }
 
         #endregion
@@ -368,6 +384,74 @@ namespace RockWeb.Blocks.CheckIn
 
         #region Methods
 
+        private void ShowDetails()
+        {
+            /*
+            // Before we proceed we’ll need you to identify you for check-in.
+            // We need to determine your location to complete the check-in process. You’ll notice a request window pop-up. Be sure to allow permissions. We’ll only have permission to you location when you’re visiting this site.
+            // Hi Ted! There are currently no services ready for check-in at this time.
+            // Hi Ted! We can’t determine your location. Please be sure to enable location permissions for your device.
+            // --  Need Help?
+            // Hi Ted! You are not currently close enough to check-in. Please try again as once you’re closer to the campus.
+
+            */
+
+            // Identification (Login or COOKIE_UNSECURED_PERSON_IDENTIFIER)
+            Person mobilePerson = GetMobilePerson();
+
+            bbtnPhoneLookup.Visible = false;
+            bbtnLogin.Visible = false;
+
+            if ( mobilePerson == null )
+            {
+                lMessage.Text = "Before we proceed we’ll need you to identify you for check-in.";
+                bbtnPhoneLookup.Visible = true;
+                bbtnLogin.Visible = true;
+                return;
+            }
+
+
+
+
+
+            // Perform GeoLocation Match (Error, Too Far/Outside Fence, Success Match)
+
+            // Hydrate CheckInState / Device
+
+            // Has Check-in Started (Inactive, TemporarilyClosed, Closed, or Active)?
+
+            // Check-in button (ProcessSelection() ?)
+        }
+
+        private Person GetMobilePerson()
+        {
+            var rockContext = new RockContext();
+            var mobilePerson = this.CurrentPerson;
+            if ( mobilePerson == null )
+            {
+                var personAliasGuid = GetPersonAliasGuidFromUnsecuredPersonIdentifier();
+                if ( personAliasGuid.HasValue )
+                {
+                    mobilePerson = new PersonAliasService( rockContext ).GetPerson( personAliasGuid.Value );
+                }
+            }
+
+            return mobilePerson;
+        }
+
+        /// <summary>
+        /// Get the unsecured person identifier from the cookie.
+        /// </summary>
+        private Guid? GetPersonAliasGuidFromUnsecuredPersonIdentifier()
+        {
+            if ( Request.Cookies[Rock.Security.Authorization.COOKIE_UNSECURED_PERSON_IDENTIFIER] != null )
+            {
+                return Request.Cookies[Rock.Security.Authorization.COOKIE_UNSECURED_PERSON_IDENTIFIER].Value.AsGuidOrNull();
+            }
+
+            return null;
+        }
+
         #endregion
 
         /// <summary>
@@ -406,9 +490,26 @@ namespace RockWeb.Blocks.CheckIn
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void ddlCheckinType_SelectedIndexChanged( object sender, EventArgs e )
         {
-            var selectedCheckinType = GroupTypeCache.Get( ddlCheckinType.SelectedValue.AsInteger() );
+            // TODO, needed?
+
             var selectedDeviceIds = lbDevices.SelectedValuesAsInt;
-            BindAreas( selectedCheckinType, selectedDeviceIds );
+            BindAreas( selectedDeviceIds );
+        }
+
+        /// <summary>
+        /// Handles the SelectedIndexChanged event of the lbDevices control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void lbDevices_SelectedIndexChanged( object sender, EventArgs e )
+        {
+            var selectedDeviceIds = lbDevices.SelectedValuesAsInt;
+            BindAreas( selectedDeviceIds );
+        }
+
+        protected void bbtnPhoneLookup_Click( object sender, EventArgs e )
+        {
+
         }
     }
 }

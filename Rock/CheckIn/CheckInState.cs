@@ -206,7 +206,7 @@ namespace Rock.CheckIn
         public string CurrentTheme { get; set; }
 
         /// <summary>
-        /// Gets or sets the current kiosk identifier.
+        /// Gets or sets the current kiosk identifier <see cref="Rock.Model.Device"/>
         /// </summary>
         /// <value>
         /// The current kiosk identifier.
@@ -214,7 +214,7 @@ namespace Rock.CheckIn
         public int? CurrentKioskId { get; set; }
 
         /// <summary>
-        /// Gets or sets the current checkin type identifier.
+        /// Gets or sets the current checkin type identifier (which is a <see cref="Rock.Model.GroupType" />)
         /// </summary>
         /// <value>
         /// The current checkin type identifier.
@@ -222,7 +222,7 @@ namespace Rock.CheckIn
         public int? CurrentCheckinTypeId { get; set; }
 
         /// <summary>
-        /// Gets or sets the current group type ids.
+        /// Gets or sets the current group type ids (Checkin Areas)
         /// </summary>
         /// <value>
         /// The current group type ids.

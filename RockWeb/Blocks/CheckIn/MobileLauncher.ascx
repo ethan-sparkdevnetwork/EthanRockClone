@@ -12,8 +12,8 @@
                         <ContentTemplate>
                             <Rock:RockListBox ID="lbDevices" runat="server" Label="Enabled Devices" Help="Set devices to consider when determining the device type, or leave blank for all." />
 
-                            <Rock:RockDropDownList ID="ddlTheme" runat="server" CssClass="input-xlarge" Label="Theme" OnSelectedIndexChanged="ddlTheme_SelectedIndexChanged" AutoPostBack="true" />
-                            <Rock:RockDropDownList ID="ddlCheckinType" runat="server" CssClass="input-xlarge" Label="Check-in Configuration" OnSelectedIndexChanged="ddlCheckinType_SelectedIndexChanged" AutoPostBack="true" DataTextField="Name" DataValueField="Id" />
+                            <Rock:RockDropDownList ID="ddlTheme" runat="server" Label="Theme"/>
+                            <Rock:RockDropDownList ID="ddlCheckinType" runat="server" Label="Check-in Configuration" OnSelectedIndexChanged="ddlCheckinType_SelectedIndexChanged" AutoPostBack="true"/>
 
                             <Rock:RockListBox ID="lbAreas" runat="server" Label="Check-in Areas" Help="The check-in areas that will be used for the checkin process" />
 

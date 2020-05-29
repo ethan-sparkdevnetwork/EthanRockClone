@@ -30,6 +30,7 @@ using Rock.Data;
 using Rock.Model;
 using Rock.Web.Cache;
 using Rock.Web.UI;
+using Rock.Workflow.Action.CheckIn;
 
 namespace RockWeb.Blocks.CheckIn
 {
@@ -44,7 +45,7 @@ namespace RockWeb.Blocks.CheckIn
 
     [TextField(
         "Devices",
-        Key = AttributeKey.DeviceGuidList,
+        Key = AttributeKey.DeviceIdList,
         Category = "CustomSetting",
         Description = "The devices to consider for determining the kiosk. No value would consider all devices in the system. If none are selected, then use all devices.",
         IsRequired = false,
@@ -61,14 +62,14 @@ namespace RockWeb.Blocks.CheckIn
 
     [TextField(
         "Check-in Configuration",
-        Key = AttributeKey.CheckinConfigurationGuid,
+        Key = AttributeKey.CheckinConfiguration_GroupTypeId,
         Category = "CustomSetting",
         IsRequired = true,
         Description = "The check-in configuration to use." )]
 
     [TextField(
         "Check-in Areas",
-        Key = AttributeKey.ConfiguredGroupTypeGuids,
+        Key = AttributeKey.ConfiguredAreas_GroupTypeIds,
         Category = "CustomSetting",
         IsRequired = true,
         Description = "The check-in areas to use." )]
@@ -81,15 +82,19 @@ namespace RockWeb.Blocks.CheckIn
 
         private static class AttributeKey
         {
-            public const string DeviceGuidList = "DeviceGuidList";
+            public const string DeviceIdList = "DeviceIdList";
 
             public const string CheckinTheme = "CheckinTheme";
 
-            // The Checkin Type (which is a GroupType)
-            public const string CheckinConfigurationGuid = "CheckinConfigurationGuid";
+            /// <summary>
+            /// The checkin configuration unique identifier (which is a GroupType)
+            /// </summary>
+            public const string CheckinConfiguration_GroupTypeId = "CheckinConfiguration_GroupTypeId";
 
-            // The Checkin Areas (which are also GroupTypes)
-            public const string ConfiguredGroupTypeGuids = "ConfiguredGroupTypeGuids";
+            /// <summary>
+            /// The configured Checkin Areas (which are really Group Types)
+            /// </summary>
+            public const string ConfiguredAreas_GroupTypeIds = "ConfiguredAreas_GroupTypeIds";
 
             public const string PhoneIdentificationPage = "PhoneIdentificationPage";
 
@@ -160,21 +165,66 @@ namespace RockWeb.Blocks.CheckIn
 
             BindDevices();
 
-            lbDevices.SetValues( this.GetAttributeValue( AttributeKey.DeviceGuidList ).SplitDelimitedValues().ToList() );
+            var selectedDevicesIds = this.GetAttributeValue( AttributeKey.DeviceIdList ).SplitDelimitedValues().AsIntegerList();
+
+            lbDevices.SetValues( selectedDevicesIds );
 
             BindCheckinTypes();
 
-            ddlCheckinType.SetValue( this.GetAttributeValue( AttributeKey.CheckinConfigurationGuid ).AsGuidOrNull() );
+            var selectedCheckinType = GroupTypeCache.Get( this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId ).AsInteger() );
+
+            ddlCheckinType.SetValue( selectedCheckinType );
+
+            var configuredAreas_GroupTypeIds = this.GetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds ).SplitDelimitedValues().AsIntegerList();
 
             // Bind Areas (which are Group Types)
-            var rockContext = new RockContext();
-            GroupTypeService groupTypeService = new GroupTypeService( rockContext );
-            //var groupTypes
+            BindAreas( selectedCheckinType, selectedDevicesIds );
 
-            lbAreas.Items.Clear();
+            lbAreas.SetValues( configuredAreas_GroupTypeIds );
 
             pnlEditSettings.Visible = true;
             mdEditSettings.Show();
+        }
+
+        /// <summary>
+        /// Binds the group types (checkin areas)
+        /// </summary>
+        /// <param name="selectedValues">The selected values.</param>
+        private void BindAreas( GroupTypeCache selectedCheckinType, IEnumerable<int> selectedDeviceIds )
+        {
+            // keep any currently selected areas after we repopulate areas for the selectedCheckinType
+            var selectedAreaIds = lbAreas.SelectedValues.AsIntegerList();
+
+            var rockContext = new RockContext();
+            var locationService = new LocationService( rockContext );
+            var groupLocationService = new GroupLocationService( rockContext );
+
+            // Get all locations (and their children) associated with the select devices
+            List<int> locationIds;
+            if ( selectedDeviceIds.Any() )
+            {
+                locationIds = locationService
+                   .GetByDevice( selectedDeviceIds, true )
+                   .Select( l => l.Id )
+                   .ToList();
+            }
+            else
+            {
+                locationIds = locationService
+                   .GetAllDeviceLocations( true )
+                   .Select( l => l.Id )
+                   .ToList();
+            }
+
+            var locationGroupTypeIds = groupLocationService
+                .Queryable().AsNoTracking()
+                .Where( l => locationIds.Contains( l.LocationId ) )
+                .Where( gl => gl.Group.GroupType.TakesAttendance )
+                .Select( gl => gl.Group.GroupTypeId )
+                .Distinct()
+                .ToList();
+
+            lbAreas.SetValues( locationGroupTypeIds );
         }
 
         /// <summary>
@@ -237,7 +287,6 @@ namespace RockWeb.Blocks.CheckIn
 
             lbDevices.Items.Clear();
             lbDevices.Items.AddRange( devices.Select( a => new ListItem( a.Name, a.Guid.ToString() ) ).ToArray() );
-            
         }
 
         /// <summary>
@@ -260,7 +309,6 @@ namespace RockWeb.Blocks.CheckIn
         protected override void OnLoad( EventArgs e )
         {
             base.OnLoad( e );
-
         }
 
         #endregion
@@ -279,27 +327,33 @@ namespace RockWeb.Blocks.CheckIn
 
         }
 
-        #endregion
-
-        #region Methods
-        #endregion
-
+        /// <summary>
+        /// Handles the Click event of the bbtnCheckin control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void bbtnCheckin_Click( object sender, EventArgs e )
         {
-            LocalDeviceConfig.CurrentCheckinTypeId = 14; // 34;
-            LocalDeviceConfig.CurrentGroupTypeIds = new List<int>() { 18, 19, 20, 21, 22 };
-            LocalDeviceConfig.CurrentKioskId = 12;
-            LocalDeviceConfig.CurrentTheme = "CheckinElectric";
+            var configuredCheckinTypeId = this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId ).AsIntegerOrNull();
+
+            LocalDeviceConfig.CurrentCheckinTypeId = configuredCheckinTypeId;
+            LocalDeviceConfig.CurrentGroupTypeIds = this.GetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds ).SplitDelimitedValues().AsIntegerList();
+
+            LocalDeviceConfig.CurrentTheme = this.GetAttributeValue( AttributeKey.CheckinTheme );
+
+            // TODO: Detemine device by geolocation and block configuration
+            //LocalDeviceConfig.CurrentKioskId = this.GetAttributeValue( AttributeKey.)
 
             var checkInState = new CheckInState( LocalDeviceConfig );
             checkInState.MobileLauncherHomePage = GetAttributeValue( "core_MobileCheckInLauncherHomePage" ).AsGuidOrNull();
             checkInState.CheckIn = new CheckInStatus();
             checkInState.CheckIn.SearchType = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CHECKIN_SEARCH_TYPE_FAMILY_ID );
-            LoadDeckerFamily( checkInState, 69 ); // similar to FindFamilies.cs wf action
+            //FindFamilies
+            //LoadDeckerFamily( checkInState, 69 ); // similar to FindFamilies.cs wf action
 
             // Store and save the CurrentCheckInState 
-            CurrentCheckInState = checkInState;
-            Session[SessionKey.CheckInState] = checkInState;
+            //CurrentCheckInState = checkInState;
+            //Session[SessionKey.CheckInState] = checkInState;
 
             // Now, we simulate as if we just came from the Family Select block...
             var errors = new List<string>();
@@ -310,87 +364,17 @@ namespace RockWeb.Blocks.CheckIn
             }
         }
 
+        #endregion
 
-        private static class SessionKey
-        {
-            public const string CheckInState = "CheckInState";
-            public const string CheckInWorkflow = "CheckInWorkflow";
-        }
+        #region Methods
 
-        private void LoadDeckerFamily( CheckInState checkInState, int famliyId )
-        {
-            checkInState.CheckIn.Families = new List<CheckInFamily>();
+        #endregion
 
-            var rockContext = new RockContext();
-            var memberService = new GroupMemberService( rockContext );
-            var groupService = new GroupService( rockContext );
-
-            int personRecordTypeId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_RECORD_TYPE_PERSON.AsGuid() ).Id;
-            int familyGroupTypeId = GroupTypeCache.Get( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY.AsGuid() ).Id;
-            var dvInactive = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_INACTIVE.AsGuid() );
-
-            // Load the family members
-            var familyMembers = memberService
-                .Queryable().AsNoTracking()
-                .Where( m => m.Group.GroupTypeId == familyGroupTypeId && m.GroupId == famliyId ).Select( a =>
-                new
-                {
-                    Group = a.Group,
-                    GroupId = a.GroupId,
-                    Order = a.GroupRole.Order,
-                    BirthYear = a.Person.BirthYear,
-                    BirthMonth = a.Person.BirthMonth,
-                    BirthDay = a.Person.BirthDay,
-                    Gender = a.Person.Gender,
-                    NickName = a.Person.NickName,
-                    RecordStatusValueId = a.Person.RecordStatusValueId
-                } )
-                .ToList();
-
-            // Add each family
-            foreach ( int familyId in familyMembers.Select( fm => fm.GroupId ).Distinct() )
-            {
-                // Get each of the members for this family
-                var familyMemberQry = familyMembers
-                    .Where( m =>
-                        m.GroupId == familyId &&
-                        m.NickName != null );
-
-                if ( checkInState.CheckInType != null && checkInState.CheckInType.PreventInactivePeople && dvInactive != null )
-                {
-                    familyMemberQry = familyMemberQry
-                        .Where( m =>
-                            m.RecordStatusValueId != dvInactive.Id );
-                }
-
-                var thisFamilyMembers = familyMemberQry.ToList();
-
-                if ( thisFamilyMembers.Any() )
-                {
-                    var group = thisFamilyMembers
-                        .Select( m => m.Group )
-                        .FirstOrDefault();
-
-                    var firstNames = thisFamilyMembers
-                        .OrderBy( m => m.Order )
-                        .ThenBy( m => m.BirthYear )
-                        .ThenBy( m => m.BirthMonth )
-                        .ThenBy( m => m.BirthDay )
-                        .ThenBy( m => m.Gender )
-                        .Select( m => m.NickName )
-                        .ToList();
-
-                    var family = new CheckInFamily();
-                    family.Group = group.Clone( false );
-                    family.Caption = group.ToString();
-                    family.FirstNames = firstNames;
-                    family.SubCaption = firstNames.AsDelimited( ", " );
-                    family.Selected = true; // IMPORTANT!! Otherwise there will be no "CurrentFamily" in the CheckInState
-                    checkInState.CheckIn.Families.Add( family );
-                }
-            }
-        }
-
+        /// <summary>
+        /// Handles the Click event of the bbtnLogin control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void bbtnLogin_Click( object sender, EventArgs e )
         {
             var queryParams = new Dictionary<string, string>();
@@ -399,19 +383,32 @@ namespace RockWeb.Blocks.CheckIn
             NavigateToLinkedPage( "core_LoginPage", queryParams );
         }
 
+        /// <summary>
+        /// Handles the SaveClick event of the mdEditSettings control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void mdEditSettings_SaveClick( object sender, EventArgs e )
         {
-
+            this.SetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId, ddlCheckinType.SelectedValue );
+            this.SetAttributeValue( AttributeKey.CheckinTheme, ddlTheme.SelectedValue );
+            this.SetAttributeValue( AttributeKey.DeviceIdList, lbDevices.SelectedValues.AsDelimited( "," ) );
+            this.SetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds, lbAreas.SelectedValues.AsDelimited( "," ) );
+            this.SaveAttributeValues();
+            mdEditSettings.Hide();
+            pnlEditSettings.Visible = false;
         }
 
-        protected void ddlTheme_SelectedIndexChanged( object sender, EventArgs e )
-        {
-
-        }
-
+        /// <summary>
+        /// Handles the SelectedIndexChanged event of the ddlCheckinType control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void ddlCheckinType_SelectedIndexChanged( object sender, EventArgs e )
         {
-
+            var selectedCheckinType = GroupTypeCache.Get( ddlCheckinType.SelectedValue.AsInteger() );
+            var selectedDeviceIds = lbDevices.SelectedValuesAsInt;
+            BindAreas( selectedCheckinType, selectedDeviceIds );
         }
     }
 }

@@ -148,6 +148,137 @@ namespace RockWeb.Blocks.CheckIn
         }
 
         /// <summary>
+        /// Raises the <see cref="E:System.Web.UI.Control.Init" /> event.
+        /// </summary>
+        /// <param name="e">An <see cref="T:System.EventArgs" /> object that contains the event data.</param>
+        protected override void OnInit( EventArgs e )
+        {
+            base.OnInit( e );
+
+            // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
+            this.BlockUpdated += Block_BlockUpdated;
+            this.AddConfigurationUpdateTrigger( upnlContent );
+        }
+
+        /// <summary>
+        /// Raises the <see cref="E:System.Web.UI.Control.Load" /> event.
+        /// </summary>
+        /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
+        protected override void OnLoad( EventArgs e )
+        {
+            base.OnLoad( e );
+
+            RockPage.AddScriptLink( "~/Blocks/CheckIn/Scripts/geo-min.js" );
+            RockPage.AddScriptLink( "~/Scripts/CheckinClient/checkin-core.js" );
+
+            if ( this.IsPostBack )
+            {
+                var eventTarget = this.Request.Params["__EVENTTARGET"];
+                var eventArgument = this.Request.Params["__EVENTARGUMENT"];
+                if ( eventArgument.IsNotNullOrWhiteSpace() )
+                {
+                    var parts = eventArgument.Split( '|' );
+
+                    if ( parts.Length == 2 )
+                    {
+                        if ( parts[0] == "GeoLocationCallback" )
+                        {
+                            ProcessGeolocationCallback( parts[1] );
+                        }
+                    }
+                }
+            }
+            else
+            {
+                ShowDetails();
+            }
+        }
+
+        /// <summary>
+        /// Shows the details.
+        /// </summary>
+        private void ShowDetails()
+        {
+            /*
+            // Before we proceed we’ll need you to identify you for check-in.
+            // We need to determine your location to complete the check-in process. You’ll notice a request window pop-up. Be sure to allow permissions. We’ll only have permission to you location when you’re visiting this site.
+            // Hi Ted! There are currently no services ready for check-in at this time.
+            // Hi Ted! We can’t determine your location. Please be sure to enable location permissions for your device.
+            // --  Need Help?
+            // Hi Ted! You are not currently close enough to check-in. Please try again as once you’re closer to the campus.
+
+            */
+
+            // Identification (Login or COOKIE_UNSECURED_PERSON_IDENTIFIER)
+            Person mobilePerson = GetMobilePerson();
+
+            bbtnPhoneLookup.Visible = false;
+            bbtnLogin.Visible = false;
+            bbtnGetGeoLocation.Visible = false;
+            hfGetGeoLocation.Value = false.ToJavaScriptValue();
+
+            if ( mobilePerson == null )
+            {
+                lMessage.Text = "Before we proceed we’ll need you to identify you for check-in.";
+                bbtnPhoneLookup.Visible = true;
+                bbtnLogin.Visible = true;
+                return;
+            }
+
+            bool alreadyHasGeolocation = false;
+            if ( !alreadyHasGeolocation )
+            {
+                lMessage.Text = "We need to determine your location to complete the check-in process. You’ll notice a request window pop-up. Be sure to allow permissions. We’ll only have permission to you location when you’re visiting this site.";
+                bbtnGetGeoLocation.Visible = true;
+                return;
+            }
+
+
+
+
+            // Perform GeoLocation Match (Error, Too Far/Outside Fence, Success Match)
+
+            // Hydrate CheckInState / Device
+
+            // Has Check-in Started (Inactive, TemporarilyClosed, Closed, or Active)?
+
+            // Check-in button (ProcessSelection() ?)
+        }
+
+        /// <summary>
+        /// Gets the mobile person.
+        /// </summary>
+        /// <returns></returns>
+        private Person GetMobilePerson()
+        {
+            var rockContext = new RockContext();
+            var mobilePerson = this.CurrentPerson;
+            if ( mobilePerson == null )
+            {
+                var personAliasGuid = GetPersonAliasGuidFromUnsecuredPersonIdentifier();
+                if ( personAliasGuid.HasValue )
+                {
+                    mobilePerson = new PersonAliasService( rockContext ).GetPerson( personAliasGuid.Value );
+                }
+            }
+
+            return mobilePerson;
+        }
+
+        /// <summary>
+        /// Get the unsecured person identifier from the cookie.
+        /// </summary>
+        private Guid? GetPersonAliasGuidFromUnsecuredPersonIdentifier()
+        {
+            if ( Request.Cookies[Rock.Security.Authorization.COOKIE_UNSECURED_PERSON_IDENTIFIER] != null )
+            {
+                return Request.Cookies[Rock.Security.Authorization.COOKIE_UNSECURED_PERSON_IDENTIFIER].Value.AsGuidOrNull();
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Handles the Click event of the lbEdit control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
@@ -298,34 +429,7 @@ namespace RockWeb.Blocks.CheckIn
             lbDevices.Items.AddRange( devices.Select( a => new ListItem( a.Name, a.Id.ToString() ) ).ToArray() );
         }
 
-        /// <summary>
-        /// Raises the <see cref="E:System.Web.UI.Control.Init" /> event.
-        /// </summary>
-        /// <param name="e">An <see cref="T:System.EventArgs" /> object that contains the event data.</param>
-        protected override void OnInit( EventArgs e )
-        {
-            base.OnInit( e );
 
-            // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
-            this.BlockUpdated += Block_BlockUpdated;
-            this.AddConfigurationUpdateTrigger( upnlContent );
-        }
-
-        /// <summary>
-        /// Raises the <see cref="E:System.Web.UI.Control.Load" /> event.
-        /// </summary>
-        /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
-        protected override void OnLoad( EventArgs e )
-        {
-            base.OnLoad( e );
-
-            RockPage.AddScriptLink( "~/Blocks/CheckIn/Scripts/geo-min.js" );
-            RockPage.AddScriptLink( "~/Scripts/CheckinClient/checkin-core.js" );
-
-            ShowDetails();
-
-            
-        }
 
         #endregion
 
@@ -384,73 +488,7 @@ namespace RockWeb.Blocks.CheckIn
 
         #region Methods
 
-        private void ShowDetails()
-        {
-            /*
-            // Before we proceed we’ll need you to identify you for check-in.
-            // We need to determine your location to complete the check-in process. You’ll notice a request window pop-up. Be sure to allow permissions. We’ll only have permission to you location when you’re visiting this site.
-            // Hi Ted! There are currently no services ready for check-in at this time.
-            // Hi Ted! We can’t determine your location. Please be sure to enable location permissions for your device.
-            // --  Need Help?
-            // Hi Ted! You are not currently close enough to check-in. Please try again as once you’re closer to the campus.
 
-            */
-
-            // Identification (Login or COOKIE_UNSECURED_PERSON_IDENTIFIER)
-            Person mobilePerson = GetMobilePerson();
-
-            bbtnPhoneLookup.Visible = false;
-            bbtnLogin.Visible = false;
-
-            if ( mobilePerson == null )
-            {
-                lMessage.Text = "Before we proceed we’ll need you to identify you for check-in.";
-                bbtnPhoneLookup.Visible = true;
-                bbtnLogin.Visible = true;
-                return;
-            }
-
-
-
-
-
-            // Perform GeoLocation Match (Error, Too Far/Outside Fence, Success Match)
-
-            // Hydrate CheckInState / Device
-
-            // Has Check-in Started (Inactive, TemporarilyClosed, Closed, or Active)?
-
-            // Check-in button (ProcessSelection() ?)
-        }
-
-        private Person GetMobilePerson()
-        {
-            var rockContext = new RockContext();
-            var mobilePerson = this.CurrentPerson;
-            if ( mobilePerson == null )
-            {
-                var personAliasGuid = GetPersonAliasGuidFromUnsecuredPersonIdentifier();
-                if ( personAliasGuid.HasValue )
-                {
-                    mobilePerson = new PersonAliasService( rockContext ).GetPerson( personAliasGuid.Value );
-                }
-            }
-
-            return mobilePerson;
-        }
-
-        /// <summary>
-        /// Get the unsecured person identifier from the cookie.
-        /// </summary>
-        private Guid? GetPersonAliasGuidFromUnsecuredPersonIdentifier()
-        {
-            if ( Request.Cookies[Rock.Security.Authorization.COOKIE_UNSECURED_PERSON_IDENTIFIER] != null )
-            {
-                return Request.Cookies[Rock.Security.Authorization.COOKIE_UNSECURED_PERSON_IDENTIFIER].Value.AsGuidOrNull();
-            }
-
-            return null;
-        }
 
         #endregion
 
@@ -510,6 +548,16 @@ namespace RockWeb.Blocks.CheckIn
         protected void bbtnPhoneLookup_Click( object sender, EventArgs e )
         {
 
+        }
+
+        protected void bbtnGetGeoLocation_Click( object sender, EventArgs e )
+        {
+            hfGetGeoLocation.Value = true.ToJavaScriptValue();
+        }
+
+        private void ProcessGeolocationCallback( string callbackResult )
+        {
+            //
         }
     }
 }

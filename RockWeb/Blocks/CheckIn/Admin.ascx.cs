@@ -301,7 +301,8 @@ namespace RockWeb.Blocks.CheckIn
     <script>
         $(document).ready(function (e) {{
 
-            tryGeoLocation();
+debugger
+tryGeoLocation();
 
             function tryGeoLocation() {{
                 if ( geo_position_js.init() ) {{

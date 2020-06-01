@@ -26,10 +26,47 @@
             </Rock:ModalDialog>
         </asp:Panel>
 
+
+        <script>
+            function tryGeoLocation() {
+                if (geo_position_js.init()) {
+                    geo_position_js.getCurrentPosition(geoLocationSuccess_callback, geoLocationError_callback, { enableHighAccuracy: true });
+                }
+                else {
+                    geoLocationError_callback(null);
+                }
+            }
+
+            function geoLocationSuccess_callback(p) {
+                $(".js-geolocation-latitude").val(p.coords.latitude.toFixed(4));
+                $(".js-geolocation-longitude").val(p.coords.longitude.toFixed(4));
+
+                window.location = "javascript:__doPostBack('<%=upnlContent.ClientID %>', 'GeoLocationCallback|Success')"
+            }
+
+            function geoLocationError_callback(p) {
+                window.location = "javascript:__doPostBack('<%=upnlContent.ClientID %>', 'GeoLocationCallback|Error')"
+            }
+
+            Sys.Application.add_load(function () {
+                debugger
+                if ($('.js-get-geo-location').val() == "true") {
+                    tryGeoLocation();
+                }
+            });
+        </script>
+
+
+        <%-- Hidden fields --%>
+        <Rock:HiddenFieldWithClass ID="hfGetGeoLocation" runat="server" CssClass="js-get-geo-location" Value="0" />
+        <Rock:HiddenFieldWithClass ID="hfLatitude" runat="server" CssClass="js-geolocation-latitude" />
+        <Rock:HiddenFieldWithClass ID="hfLongitude" runat="server" CssClass="js-geolocation-longitude" />
+
         <%-- Main Panel --%>
 
         <div class="checkin-header">
-            <h1><asp:Literal ID="lCheckinHeader" runat="server" Text="Mobile Check-in" /></h1>
+            <h1>
+                <asp:Literal ID="lCheckinHeader" runat="server" Text="Mobile Check-in" /></h1>
         </div>
 
         <div class="checkin-body">
@@ -43,8 +80,9 @@
 
                         <div class="controls">
 
-                            <Rock:BootstrapButton ID="bbtnPhoneLookup" runat="server" Text="Phone Lookup" OnClick="bbtnPhoneLookup_Click" CssClass="btn btn-default btn-block" />
+                            <Rock:BootstrapButton ID="bbtnPhoneLookup" runat="server" Text="Phone Lookup" OnClick="bbtnPhoneLookup_Click" CssClass="btn btn-primary btn-block" />
                             <Rock:BootstrapButton ID="bbtnLogin" runat="server" Text="Login" OnClick="bbtnLogin_Click" CssClass="btn btn-default btn-block" />
+                            <Rock:BootstrapButton ID="bbtnGetGeoLocation" runat="server" Text="Next" OnClick="bbtnGetGeoLocation_Click" CssClass="btn btn-primary btn-block" />
                         </div>
 
 

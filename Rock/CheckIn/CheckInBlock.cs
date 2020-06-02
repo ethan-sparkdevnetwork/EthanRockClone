@@ -217,7 +217,7 @@ namespace Rock.CheckIn
         /// <summary>
         /// Holds cookie names shared across certain check-in blocks.
         /// </summary>
-        [Obsolete( "Use CheckinConfigurationHelper.CheckInCookieKey instead" )]
+        [Obsolete( "Use CheckInCookieKey instead" )]
         [RockObsolete( "1.10" )]
         public struct CheckInCookie
         {
@@ -358,6 +358,11 @@ namespace Rock.CheckIn
         protected override void OnInit( EventArgs e )
         {
             base.OnInit( e );
+
+            if ( CurrentCheckInState.DisableIdleRedirect == true )
+            {
+                DisableIdleRedirectBlocks( true );
+            }
 
             // Tell the browsers to not cache any pages that have a block that inherits from CheckinBlock. This will help prevent browser using stale copy of checkin pages which could cause labels to get reprinted, and other expected things.
             Page.Response.Cache.SetCacheability( System.Web.HttpCacheability.NoCache );
@@ -525,7 +530,7 @@ namespace Rock.CheckIn
         /// <summary>
         /// Goes the back.
         /// </summary>
-        /// <param name="validateSelectionRequired">if set to <c>true</c> will check that block on prev page has a selection required before redirecting.</param>
+        /// <param name="validateSelectionRequired">if set to <c>true</c> will check that block on previous page has a selection required before redirecting.</param>
         protected virtual void GoBack( bool validateSelectionRequired )
         {
             SaveState();
@@ -545,9 +550,11 @@ namespace Rock.CheckIn
         /// </summary>
         protected virtual void NavigateToHomePage()
         {
-            if ( CurrentCheckInState != null && CurrentCheckInState.MobileLauncherHomePage.HasValue )
+            Guid? homePageOverride = CurrentCheckInState?.HomePageOverride;
+
+            if ( homePageOverride.HasValue )
             {
-                NavigateToPage( CurrentCheckInState.MobileLauncherHomePage.Value, null );
+                NavigateToPage( homePageOverride.Value, null );
             }
             else
             {
@@ -818,10 +825,7 @@ namespace Rock.CheckIn
                 CurrentCheckInState = new CheckInState( this.LocalDeviceConfig.CurrentKioskId.Value, this.LocalDeviceConfig.CurrentCheckinTypeId, this.LocalDeviceConfig.CurrentGroupTypeIds );
             }
 
-            if ( CurrentCheckInState.MobileLauncherHomePage.HasValue )
-            {
-                DisableIdleRedirectBlocks( true );
-            }
+            
         }
     }
 }

@@ -45,12 +45,14 @@
             }
 
             function geoLocationError_callback(p) {
-                window.location = "javascript:__doPostBack('<%=upnlContent.ClientID %>', 'GeoLocationCallback|Error')"
+                debugger
+                window.location = "javascript:__doPostBack('<%=upnlContent.ClientID %>', 'GeoLocationCallback|Error|" + encodeURIComponent(p.message) + "')";
             }
 
             Sys.Application.add_load(function () {
-                debugger
                 if ($('.js-get-geo-location').val() == "true") {
+                    var $getGeoLocationButton = $(".js-get-geolocation");
+                    Rock.controls.bootstrapButton.showLoading($getGeoLocationButton);
                     tryGeoLocation();
                 }
             });
@@ -58,7 +60,7 @@
 
 
         <%-- Hidden fields --%>
-        <Rock:HiddenFieldWithClass ID="hfGetGeoLocation" runat="server" CssClass="js-get-geo-location" Value="0" />
+        <Rock:HiddenFieldWithClass ID="hfGetGeoLocation" runat="server" CssClass="js-get-geo-location" Value="false" />
         <Rock:HiddenFieldWithClass ID="hfLatitude" runat="server" CssClass="js-geolocation-latitude" />
         <Rock:HiddenFieldWithClass ID="hfLongitude" runat="server" CssClass="js-geolocation-longitude" />
 
@@ -79,12 +81,11 @@
                             <asp:Literal ID="lMessage" runat="server" Text="Before we proceed we'll need to identify you for check-in" /></label>
 
                         <div class="controls">
-
                             <Rock:BootstrapButton ID="bbtnPhoneLookup" runat="server" Text="Phone Lookup" OnClick="bbtnPhoneLookup_Click" CssClass="btn btn-primary btn-block" />
                             <Rock:BootstrapButton ID="bbtnLogin" runat="server" Text="Login" OnClick="bbtnLogin_Click" CssClass="btn btn-default btn-block" />
-                            <Rock:BootstrapButton ID="bbtnGetGeoLocation" runat="server" Text="Next" OnClick="bbtnGetGeoLocation_Click" CssClass="btn btn-primary btn-block" />
+                            <Rock:BootstrapButton ID="bbtnGetGeoLocation" runat="server" Text="Next" OnClick="bbtnGetGeoLocation_Click" DataLoadingText="Getting Location..." CssClass="btn btn-primary btn-block js-get-geolocation" />
+                            <Rock:BootstrapButton ID="bbtnCheckin" runat="server" Text="Check-in" OnClick="bbtnCheckin_Click" DataLoadingText="Check-in..." CssClass="btn btn-primary btn-block js-checkin" />
                         </div>
-
 
                     </div>
                 </div>

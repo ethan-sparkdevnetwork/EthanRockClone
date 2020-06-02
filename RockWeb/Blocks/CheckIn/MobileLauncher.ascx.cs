@@ -20,18 +20,19 @@ using System.ComponentModel;
 using System.Data.Entity;
 using System.IO;
 using System.Linq;
+using System.Web;
 using System.Web.UI;
 using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
+
 using Rock;
 using Rock.Attribute;
 using Rock.CheckIn;
 using Rock.Data;
+using Rock.Lava;
 using Rock.Model;
-using Rock.Reporting.DataSelect.Group;
 using Rock.Web.Cache;
 using Rock.Web.UI;
-using Rock.Workflow.Action.CheckIn;
 
 namespace RockWeb.Blocks.CheckIn
 {
@@ -76,6 +77,67 @@ namespace RockWeb.Blocks.CheckIn
         Description = "The check-in areas to use." )]
 
     #endregion Block Attributes
+
+
+    #region Block Attributes for Text options
+
+    [TextField(
+        "Identify you Prompt Template <span class='tip tip-lava'></span>",
+        Key = AttributeKey.IdentifyYouPromptTemplate,
+        Category = "CustomSetting",
+        DefaultValue = "Before we proceed we'll need you to identify you for check-in.",
+        IsRequired = true,
+        Description = "" )]
+
+    [TextField(
+        "Allow Location Prompt <span class='tip tip-lava'></span>",
+        Key = AttributeKey.AllowLocationPermissionPromptTemplate,
+        Category = "CustomSetting",
+        DefaultValue = "We need to determine your location to complete the check-in process. You'll notice a request window pop-up. Be sure to allow permissions. We'll only have permission to you location when you're visiting this site.",
+        IsRequired = true,
+        Description = "" )]
+
+    [TextField(
+        "LocationProgress",
+        Key = AttributeKey.LocationProgress,
+        Category = "CustomSetting",
+        DefaultValue = "Determining location...",
+        IsRequired = true,
+        Description = "" )]
+
+    [TextField(
+        "Welcome Back <span class='tip tip-lava'></span>",
+        Key = AttributeKey.WelcomeBackTemplate,
+        Category = "CustomSetting",
+        DefaultValue = "Hi {{ CurrentPerson.NickName }}! Great to see to see you back. Select the check-in button to get started.",
+        IsRequired = true,
+        Description = "" )]
+
+    [TextField(
+        "No Services <span class='tip tip-lava'></span>",
+        Key = AttributeKey.NoScheduledDevicesAvailableTemplate,
+        Category = "CustomSetting",
+        DefaultValue = "Hi {{ CurrentPerson.NickName }}! There are currently no services ready for check-in at this time.",
+        IsRequired = true,
+        Description = "" )]
+
+    [TextField(
+        "Can't determine location. <span class='tip tip-lava'></span>",
+        Key = AttributeKey.UnableToDetermineMobileLocationTemplate,
+        Category = "CustomSetting",
+        DefaultValue = "Hi {{ CurrentPerson.NickName }}! We can't determine your location. Please be sure to enable location permissions for your device.",
+        IsRequired = true,
+        Description = "" )]
+
+    [TextField(
+        "No Devices Found <span class='tip tip-lava'></span>",
+        Key = AttributeKey.NoDevicesFoundTemplate,
+        Category = "CustomSetting",
+        DefaultValue = "Hi {{ CurrentPerson.NickName }}! You are not currently close enough to check-in. Please try again once you're closer to the campus.",
+        IsRequired = true,
+        Description = "" )]
+
+    #endregion Block Attributes for Text options
     public partial class MobileLauncher : CheckInBlock
     {
 
@@ -100,13 +162,29 @@ namespace RockWeb.Blocks.CheckIn
             public const string PhoneIdentificationPage = "PhoneIdentificationPage";
 
             public const string LoginPage = "LoginPage";
+
+            public const string IdentifyYouPromptTemplate = "IdentifyYouPromptTemplate";
+
+            public const string WelcomeBackTemplate = "WelcomeBackTemplate";
+
+            public const string AllowLocationPermissionPromptTemplate = "AllowLocationPermissionPromptTemplate";
+
+            public const string LocationProgress = "LocationProgress";
+
+            public const string NoScheduledDevicesAvailableTemplate = "NoScheduledDevicesAvailableTemplate";
+
+            public const string UnableToDetermineMobileLocationTemplate = "UnableToDetermineMobileLocationTemplate";
+
+            public const string NoDevicesFoundTemplate = "NoDevicesFoundTemplate";
         }
 
         #endregion Attribute Keys
 
+        #region MessageConstants
+
+        #endregion MessageConstants
+
         #region Base Control Methods
-
-
 
         /// <summary>
         /// Adds icons to the configuration area of a <see cref="T:Rock.Model.Block" /> instance.  Can be overridden to
@@ -173,20 +251,7 @@ namespace RockWeb.Blocks.CheckIn
 
             if ( this.IsPostBack )
             {
-                var eventTarget = this.Request.Params["__EVENTTARGET"];
-                var eventArgument = this.Request.Params["__EVENTARGUMENT"];
-                if ( eventArgument.IsNotNullOrWhiteSpace() )
-                {
-                    var parts = eventArgument.Split( '|' );
-
-                    if ( parts.Length == 2 )
-                    {
-                        if ( parts[0] == "GeoLocationCallback" )
-                        {
-                            ProcessGeolocationCallback( parts[1] );
-                        }
-                    }
-                }
+                ProcessCustomPostBackEvents();
             }
             else
             {
@@ -195,54 +260,113 @@ namespace RockWeb.Blocks.CheckIn
         }
 
         /// <summary>
+        /// Processes the custom PostBack events.
+        /// </summary>
+        private void ProcessCustomPostBackEvents()
+        {
+            /* Process GeoLocation callbacks */
+            hfGetGeoLocation.Value = false.ToJavaScriptValue();
+            var eventTarget = this.Request.Params["__EVENTTARGET"];
+            var eventArgument = this.Request.Params["__EVENTARGUMENT"];
+            if ( eventArgument.IsNotNullOrWhiteSpace() )
+            {
+                var parts = eventArgument.Split( '|' );
+
+                if ( parts.Length >= 2 )
+                {
+                    if ( parts[0] == "GeoLocationCallback" )
+                    {
+                        string geoResult = parts[1];
+                        string message = string.Empty;
+                        if ( parts.Length == 3 )
+                        {
+                            message = parts[2];
+                        }
+
+                        ProcessGeolocationCallback( geoResult, message );
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Shows the details.
         /// </summary>
         private void ShowDetails()
         {
-            /*
-            // Before we proceed we’ll need you to identify you for check-in.
-            // We need to determine your location to complete the check-in process. You’ll notice a request window pop-up. Be sure to allow permissions. We’ll only have permission to you location when you’re visiting this site.
-            // Hi Ted! There are currently no services ready for check-in at this time.
-            // Hi Ted! We can’t determine your location. Please be sure to enable location permissions for your device.
-            // --  Need Help?
-            // Hi Ted! You are not currently close enough to check-in. Please try again as once you’re closer to the campus.
+            bbtnPhoneLookup.Visible = false;
+            bbtnLogin.Visible = false;
+            bbtnGetGeoLocation.Visible = false;
+            bbtnCheckin.Visible = false;
+            hfGetGeoLocation.Value = false.ToJavaScriptValue();
 
-            */
+            if ( this.InPagesConfigurationMode )
+            {
+                // the current page is different than the Block's page, so  we are probably on the Home > CMS Configuration > Pages page
+                return;
+            }
+
+            var selectedCheckinType = GroupTypeCache.Get( this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId ).AsInteger() );
+            if ( selectedCheckinType == null )
+            {
+                lMessage.Text = "Unable to determine check-in configuration";
+                return;
+            }
+
+
+            var configuredTheme = this.GetAttributeValue( AttributeKey.CheckinTheme );
+            SetSelectedTheme( configuredTheme );
 
             // Identification (Login or COOKIE_UNSECURED_PERSON_IDENTIFIER)
             Person mobilePerson = GetMobilePerson();
 
-            bbtnPhoneLookup.Visible = false;
-            bbtnLogin.Visible = false;
-            bbtnGetGeoLocation.Visible = false;
-            hfGetGeoLocation.Value = false.ToJavaScriptValue();
-
             if ( mobilePerson == null )
             {
-                lMessage.Text = "Before we proceed we’ll need you to identify you for check-in.";
+                // unable to determine person from login or person cookie
+                lMessage.Text = "Before we proceed we'll need you to identify you for check-in.";
                 bbtnPhoneLookup.Visible = true;
                 bbtnLogin.Visible = true;
                 return;
             }
 
-            bool alreadyHasGeolocation = false;
+
+            bool alreadyHasGeolocation = Request.Cookies[CheckInCookieKey.RockHasLocationApproval] != null;
             if ( !alreadyHasGeolocation )
             {
-                lMessage.Text = "We need to determine your location to complete the check-in process. You’ll notice a request window pop-up. Be sure to allow permissions. We’ll only have permission to you location when you’re visiting this site.";
+                // the RockHasLocationApproval cookie indicates that location access hasn't been allowed yet
+                lMessage.Text = "We need to determine your location to complete the check-in process. You'll notice a request window pop-up. Be sure to allow permissions. We'll only have permission to you location when you're visiting this site.";
                 bbtnGetGeoLocation.Visible = true;
                 return;
             }
 
 
+            // they already approved location permissions so let the Geo Location JavaScript return the current lat/long,
+            // then ProcessGeolocationCallback will take care of the rest of the logic
+            // this might take a few seconds, so display a progress message
+            lMessage.Text = GetMessageText( AttributeKey.LocationProgress );
+            EnableGeoLocationScript();
+        }
 
+        /// <summary>
+        /// Sets the configured theme and updates the theme cookie if needed
+        /// </summary>
+        /// <param name="theme">The theme.</param>
+        private void SetSelectedTheme( string theme )
+        {
+            if ( LocalDeviceConfig.CurrentTheme != theme )
+            {
+                LocalDeviceConfig.CurrentTheme = ddlTheme.SelectedValue;
+                SaveState();
+            }
 
-            // Perform GeoLocation Match (Error, Too Far/Outside Fence, Success Match)
+            if ( !RockPage.Site.Theme.Equals( LocalDeviceConfig.CurrentTheme, StringComparison.OrdinalIgnoreCase ) )
+            {
+                // if the site's theme doesn't match the configured theme, reload the page with the theme parameter so that the correct theme gets loaded and the theme cookie gets set
+                Dictionary<string, string> themeParameters = new Dictionary<string, string>();
+                themeParameters.Add( "theme", LocalDeviceConfig.CurrentTheme );
 
-            // Hydrate CheckInState / Device
-
-            // Has Check-in Started (Inactive, TemporarilyClosed, Closed, or Active)?
-
-            // Check-in button (ProcessSelection() ?)
+                NavigateToCurrentPageReference( themeParameters );
+            }
         }
 
         /// <summary>
@@ -385,12 +509,13 @@ namespace RockWeb.Blocks.CheckIn
                     .Select( t => new
                     {
                         t.Name,
-                        t.Guid
+                        t.Id
                     } )
                     .ToList();
 
                 ddlCheckinType.Items.Clear();
-                ddlCheckinType.Items.AddRange( checkinTypes.Select( a => new ListItem( a.Name, a.Guid.ToString() ) ).ToArray() );
+                ddlCheckinType.Items.Add( new ListItem() );
+                ddlCheckinType.Items.AddRange( checkinTypes.Select( a => new ListItem( a.Name, a.Id.ToString() ) ).ToArray() );
             }
         }
 
@@ -400,6 +525,7 @@ namespace RockWeb.Blocks.CheckIn
         private void BindThemes()
         {
             ddlTheme.Items.Clear();
+            ddlTheme.Items.Add( new ListItem() );
             DirectoryInfo di = new DirectoryInfo( this.Page.Request.MapPath( ResolveRockUrl( "~~" ) ) );
             foreach ( var themeDir in di.Parent.EnumerateDirectories().OrderBy( a => a.Name ) )
             {
@@ -426,16 +552,13 @@ namespace RockWeb.Blocks.CheckIn
                 } ).ToList();
 
             lbDevices.Items.Clear();
+            lbDevices.Items.Add( new ListItem() );
             lbDevices.Items.AddRange( devices.Select( a => new ListItem( a.Name, a.Id.ToString() ) ).ToArray() );
         }
-
-
 
         #endregion
 
         #region Events
-
-        // handlers called by the controls on your block
 
         /// <summary>
         /// Handles the BlockUpdated event of the control.
@@ -444,7 +567,7 @@ namespace RockWeb.Blocks.CheckIn
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void Block_BlockUpdated( object sender, EventArgs e )
         {
-
+            //
         }
 
         /// <summary>
@@ -461,34 +584,56 @@ namespace RockWeb.Blocks.CheckIn
 
             LocalDeviceConfig.CurrentTheme = this.GetAttributeValue( AttributeKey.CheckinTheme );
 
-            // TODO: Detemine device by geolocation and block configuration
+            // TODO: Determine device by GEO location and block configuration
             //LocalDeviceConfig.CurrentKioskId = this.GetAttributeValue( AttributeKey.)
 
             var checkInState = new CheckInState( LocalDeviceConfig );
-            checkInState.MobileLauncherHomePage = GetAttributeValue( "core_MobileCheckInLauncherHomePage" ).AsGuidOrNull();
+
+            // override the HomePage block setting to the mobile home page
+            checkInState.HomePageOverride = this.PageCache.Guid;
+
+
+            // turn off the idle redirect blocks since we don't a person's mobile device to do that
+            checkInState.DisableIdleRedirect = true;
+
+
             checkInState.CheckIn = new CheckInStatus();
             checkInState.CheckIn.SearchType = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CHECKIN_SEARCH_TYPE_FAMILY_ID );
-            //FindFamilies
-            //LoadDeckerFamily( checkInState, 69 ); // similar to FindFamilies.cs wf action
 
-            // Store and save the CurrentCheckInState 
-            //CurrentCheckInState = checkInState;
-            //Session[SessionKey.CheckInState] = checkInState;
+            var mobilePerson = this.GetMobilePerson();
 
-            // Now, we simulate as if we just came from the Family Select block...
-            var errors = new List<string>();
-
-            if ( ProcessSelection( null, () => false, "this.ConditionMessage" ) )
+            if ( mobilePerson == null )
             {
-                System.Diagnostics.Debug.WriteLine( "success" );
+                // shouldn't happen
+                return;
             }
+
+            var family = mobilePerson.GetFamily();
+
+            var familyMembers = mobilePerson.GetFamilyMembers( true );
+
+            var firstNames = familyMembers
+                                .OrderBy( m => m.GroupRole.Order )
+                                .ThenBy( m => m.Person.BirthYear )
+                                .ThenBy( m => m.Person.BirthMonth )
+                                .ThenBy( m => m.Person.BirthDay )
+                                .ThenBy( m => m.Person.Gender )
+                                .Select( m => m.Person.NickName )
+                                .ToList();
+
+            var checkInFamily = new CheckInFamily();
+            checkInFamily.Group = family.Clone( false );
+            checkInFamily.Caption = family.ToString();
+            checkInFamily.FirstNames = firstNames;
+            checkInFamily.SubCaption = firstNames.AsDelimited( ", " );
+            checkInState.CheckIn.Families.Add( checkInFamily );
+
+            NavigateToNextPage();
         }
 
         #endregion
 
         #region Methods
-
-
 
         #endregion
 
@@ -545,19 +690,113 @@ namespace RockWeb.Blocks.CheckIn
             BindAreas( selectedDeviceIds );
         }
 
+        /// <summary>
+        /// Handles the Click event of the bbtnPhoneLookup control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void bbtnPhoneLookup_Click( object sender, EventArgs e )
         {
-
+            NavigateToLinkedPage( AttributeKey.PhoneIdentificationPage );
         }
 
+        /// <summary>
+        /// Handles the Click event of the bbtnGetGeoLocation control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void bbtnGetGeoLocation_Click( object sender, EventArgs e )
+        {
+            EnableGeoLocationScript();
+        }
+
+        /// <summary>
+        /// Enables the GEO location JavaScript which will return the current lat/long then call <seealso cref="ProcessGeolocationCallback(string, string)"/>
+        /// </summary>
+        private void EnableGeoLocationScript()
         {
             hfGetGeoLocation.Value = true.ToJavaScriptValue();
         }
 
-        private void ProcessGeolocationCallback( string callbackResult )
+        /// <summary>
+        /// Gets the device from the GeoLocation callback result;
+        /// </summary>
+        /// <param name="callbackResult">The callback result.</param>
+        /// <param name="errorMessage">The error message.</param>
+        private void ProcessGeolocationCallback( string callbackResult, string errorMessage )
         {
-            //
+            hfGetGeoLocation.Value = false.ToJavaScriptValue();
+
+            var latitude = hfLatitude.Value.AsDoubleOrNull();
+            var longitude = hfLongitude.Value.AsDoubleOrNull();
+            Device device = null;
+
+            if ( callbackResult == "Success" && latitude.HasValue && longitude.HasValue )
+            {
+                bbtnGetGeoLocation.Visible = false;
+                HttpCookie rockHasLocationApprovalCookie = new HttpCookie( CheckInCookieKey.RockHasLocationApproval, "true" );
+                Response.Cookies.Set( rockHasLocationApprovalCookie );
+
+                device = GetClosestKioskByGeoFencing( latitude.Value, longitude.Value );
+            }
+            else
+            {
+                lMessage.Text = GetMessageText( AttributeKey.UnableToDetermineMobileLocationTemplate );
+                return;
+            }
+
+            if ( device == null )
+            {
+                lMessage.Text = GetMessageText( AttributeKey.NoDevicesFoundTemplate );
+                return;
+            }
+            else
+            {
+                // device found for mobile person's location
+                lMessage.Text = GetMessageText( AttributeKey.WelcomeBackTemplate );
+                bbtnCheckin.Visible = true;
+                return;
+            }
+        }
+
+        /// <summary>
+        /// Gets the message text.
+        /// </summary>
+        /// <param name="messageLavaTemplateAttributeKey">The message lava template attribute key.</param>
+        /// <returns></returns>
+        private string GetMessageText( string messageLavaTemplateAttributeKey )
+        {
+            var mobilePerson = this.GetMobilePerson();
+            var mergeFields = LavaHelper.GetCommonMergeFields( this.RockPage, mobilePerson );
+
+            string messageLavaTemplate = this.GetAttributeValue( messageLavaTemplateAttributeKey );
+
+            return messageLavaTemplate.ResolveMergeFields( mergeFields );
+        }
+
+        /// <summary>
+        /// Returns a kiosk based on finding a GEO location match for the given latitude and longitude.
+        /// </summary>
+        /// <param name="latitude">The latitude.</param>
+        /// <param name="longitude">The longitude.</param>
+        /// <returns></returns>
+        public Device GetClosestKioskByGeoFencing( double latitude, double longitude )
+        {
+            var checkInDeviceTypeId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.DEVICE_TYPE_CHECKIN_KIOSK ).Id;
+
+            using ( var rockContext = new RockContext() )
+            {
+                IQueryable<Device> kioskQuery = new DeviceService( rockContext ).GetDevicesByGeocode( latitude, longitude, checkInDeviceTypeId );
+                List<int> allowedDeviceIds = this.GetAttributeValue( AttributeKey.DeviceIdList ).SplitDelimitedValues().AsIntegerList();
+                if ( allowedDeviceIds.Any() )
+                {
+                    kioskQuery = kioskQuery.Where( a => allowedDeviceIds.Contains( a.Id ) );
+                }
+
+                var mobileGeoPoint = Location.GetGeoPoint( latitude, longitude );
+
+                return kioskQuery.OrderBy( a => a.Location.GeoPoint.Distance( mobileGeoPoint ) ).FirstOrDefault();
+            }
         }
     }
 }

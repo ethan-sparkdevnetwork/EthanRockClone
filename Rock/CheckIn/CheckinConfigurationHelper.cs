@@ -217,5 +217,12 @@ namespace Rock.CheckIn
         /// The phone number used to check in could be in this cookie.
         /// </summary>
         public static readonly string PhoneNumber = "Checkin.PhoneNumber";
+
+        /// <summary>
+        /// Cookie to store whether the user has previously allowed location access
+        /// </summary>
+        public static readonly string RockHasLocationApproval = "Checkin.RockHasLocationApproval";
+
+
     }
 }

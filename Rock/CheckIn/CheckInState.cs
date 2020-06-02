@@ -28,13 +28,22 @@ namespace Rock.CheckIn
     public class CheckInState
     {
         /// <summary>
-        /// Gets or sets the mobile launcher home page.
+        /// Gets home page Guid to use instead of the one configured in <seealso cref="CheckInBlock"/>'s HomePage block setting.
+        /// This is handy for things such as a checkin that start with the MobileLauncher Page
         /// </summary>
         /// <value>
-        /// The mobile launcher home page.
         /// </value>
         [DataMember]
-        public Guid? MobileLauncherHomePage { get; set; }
+        public Guid? HomePageOverride { get; set; }
+
+
+        /// <summary>
+        /// Gets or sets a value indicating whether checkin pages should disable IdleRedirect blocks
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [disable idle redirect]; otherwise, <c>false</c>.
+        /// </value>
+        public bool DisableIdleRedirect { get; set; } = false;
 
         /// <summary>
         /// Gets or sets the device id
@@ -148,7 +157,7 @@ namespace Rock.CheckIn
         /// The messages.
         /// </value>
         public List<CheckInMessage> Messages { get; set; }
-
+        
         /// <summary>
         /// Initializes a new instance of the <see cref="CheckInState" /> class.
         /// </summary>

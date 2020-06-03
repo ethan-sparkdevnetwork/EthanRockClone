@@ -223,6 +223,10 @@ namespace Rock.CheckIn
         /// </summary>
         public static readonly string RockHasLocationApproval = "Checkin.RockHasLocationApproval";
 
-
+        /// <summary>
+        /// A cookie that stores the AttendanceSession Guid(s) (Encrypted??) that have been used
+        /// This cookie should expire ???? TODO
+        /// </summary>
+        public static readonly string AttendanceSessionGuids = "Checkin.AttendanceSessionGuids";
     }
 }

@@ -2,7 +2,7 @@
 <asp:UpdatePanel ID="upContent" runat="server">
 <ContentTemplate>
 
-    
+    <asp:PlaceHolder ID="phGeoCodeScript" runat="server" />
     <asp:HiddenField ID="hfGeoError" runat="server" />
     <asp:HiddenField ID="hfLatitude" runat="server" />
     <asp:HiddenField ID="hfLongitude" runat="server" />

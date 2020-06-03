@@ -84,7 +84,7 @@ namespace RockWeb.Blocks.CheckIn
     [TextField(
         "Identify you Prompt Template <span class='tip tip-lava'></span>",
         Key = AttributeKey.IdentifyYouPromptTemplate,
-        Category = "CustomSetting",
+        Category = "Text",
         DefaultValue = "Before we proceed we'll need you to identify you for check-in.",
         IsRequired = true,
         Description = "" )]
@@ -92,15 +92,15 @@ namespace RockWeb.Blocks.CheckIn
     [TextField(
         "Allow Location Prompt <span class='tip tip-lava'></span>",
         Key = AttributeKey.AllowLocationPermissionPromptTemplate,
-        Category = "CustomSetting",
-        DefaultValue = "We need to determine your location to complete the check-in process. You'll notice a request window pop-up. Be sure to allow permissions. We'll only have permission to you location when you're visiting this site.",
+        Category = "Text",
+        DefaultValue = "We need to determine your location to complete the check-in process. You'll notice a request window pop-up. Be sure to allow permissions. We'll only have permission to your location when you're visiting this site.",
         IsRequired = true,
         Description = "" )]
 
     [TextField(
-        "LocationProgress",
+        "Location Progress <span class='tip tip-lava'></span>",
         Key = AttributeKey.LocationProgress,
-        Category = "CustomSetting",
+        Category = "Text",
         DefaultValue = "Determining location...",
         IsRequired = true,
         Description = "" )]
@@ -108,7 +108,7 @@ namespace RockWeb.Blocks.CheckIn
     [TextField(
         "Welcome Back <span class='tip tip-lava'></span>",
         Key = AttributeKey.WelcomeBackTemplate,
-        Category = "CustomSetting",
+        Category = "Text",
         DefaultValue = "Hi {{ CurrentPerson.NickName }}! Great to see to see you back. Select the check-in button to get started.",
         IsRequired = true,
         Description = "" )]
@@ -116,7 +116,7 @@ namespace RockWeb.Blocks.CheckIn
     [TextField(
         "No Services <span class='tip tip-lava'></span>",
         Key = AttributeKey.NoScheduledDevicesAvailableTemplate,
-        Category = "CustomSetting",
+        Category = "Text",
         DefaultValue = "Hi {{ CurrentPerson.NickName }}! There are currently no services ready for check-in at this time.",
         IsRequired = true,
         Description = "" )]
@@ -124,7 +124,7 @@ namespace RockWeb.Blocks.CheckIn
     [TextField(
         "Can't determine location. <span class='tip tip-lava'></span>",
         Key = AttributeKey.UnableToDetermineMobileLocationTemplate,
-        Category = "CustomSetting",
+        Category = "Text",
         DefaultValue = "Hi {{ CurrentPerson.NickName }}! We can't determine your location. Please be sure to enable location permissions for your device.",
         IsRequired = true,
         Description = "" )]
@@ -132,7 +132,7 @@ namespace RockWeb.Blocks.CheckIn
     [TextField(
         "No Devices Found <span class='tip tip-lava'></span>",
         Key = AttributeKey.NoDevicesFoundTemplate,
-        Category = "CustomSetting",
+        Category = "Text",
         DefaultValue = "Hi {{ CurrentPerson.NickName }}! You are not currently close enough to check-in. Please try again once you're closer to the campus.",
         IsRequired = true,
         Description = "" )]
@@ -313,7 +313,6 @@ namespace RockWeb.Blocks.CheckIn
                 return;
             }
 
-
             var configuredTheme = this.GetAttributeValue( AttributeKey.CheckinTheme );
             SetSelectedTheme( configuredTheme );
 
@@ -323,22 +322,20 @@ namespace RockWeb.Blocks.CheckIn
             if ( mobilePerson == null )
             {
                 // unable to determine person from login or person cookie
-                lMessage.Text = "Before we proceed we'll need you to identify you for check-in.";
+                lMessage.Text = GetMessageText( AttributeKey.IdentifyYouPromptTemplate );
                 bbtnPhoneLookup.Visible = true;
                 bbtnLogin.Visible = true;
                 return;
             }
 
-
             bool alreadyHasGeolocation = Request.Cookies[CheckInCookieKey.RockHasLocationApproval] != null;
             if ( !alreadyHasGeolocation )
             {
                 // the RockHasLocationApproval cookie indicates that location access hasn't been allowed yet
-                lMessage.Text = "We need to determine your location to complete the check-in process. You'll notice a request window pop-up. Be sure to allow permissions. We'll only have permission to you location when you're visiting this site.";
+                lMessage.Text = GetMessageText( AttributeKey.AllowLocationPermissionPromptTemplate );
                 bbtnGetGeoLocation.Visible = true;
                 return;
             }
-
 
             // they already approved location permissions so let the Geo Location JavaScript return the current lat/long,
             // then ProcessGeolocationCallback will take care of the rest of the logic
@@ -584,10 +581,25 @@ namespace RockWeb.Blocks.CheckIn
 
             LocalDeviceConfig.CurrentTheme = this.GetAttributeValue( AttributeKey.CheckinTheme );
 
-            // TODO: Determine device by GEO location and block configuration
-            //LocalDeviceConfig.CurrentKioskId = this.GetAttributeValue( AttributeKey.)
+            var latitude = hfLatitude.Value.AsDoubleOrNull();
+            var longitude = hfLongitude.Value.AsDoubleOrNull();
+            if ( latitude == null || longitude == null )
+            {
+                // shouldn't happen
+                return;
+            }
 
-            var checkInState = new CheckInState( LocalDeviceConfig );
+            var device = GetClosestKioskByGeoFencing( latitude.Value, longitude.Value );
+
+            if ( device == null )
+            {
+                // shouldn't happen
+                return;
+            }
+
+            LocalDeviceConfig.CurrentKioskId = device.Id;
+
+            var checkInState = CurrentCheckInState;
 
             // override the HomePage block setting to the mobile home page
             checkInState.HomePageOverride = this.PageCache.Guid;
@@ -626,7 +638,13 @@ namespace RockWeb.Blocks.CheckIn
             checkInFamily.Caption = family.ToString();
             checkInFamily.FirstNames = firstNames;
             checkInFamily.SubCaption = firstNames.AsDelimited( ", " );
+            checkInFamily.Selected = true;
+            checkInState.CheckIn.Families = new List<CheckInFamily>();
             checkInState.CheckIn.Families.Add( checkInFamily );
+
+            ProcessForFamily
+
+            SaveState();
 
             NavigateToNextPage();
         }

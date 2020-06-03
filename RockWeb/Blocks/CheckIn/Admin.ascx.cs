@@ -130,7 +130,7 @@ namespace RockWeb.Blocks.CheckIn
                     NavigateToNextPage( queryParams );
                     return;
                 }
-
+                 
                 ShowDetail();
             }
             else

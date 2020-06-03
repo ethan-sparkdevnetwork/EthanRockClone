@@ -359,7 +359,12 @@ namespace Rock.CheckIn
         {
             base.OnInit( e );
 
-            if ( CurrentCheckInState.DisableIdleRedirect == true )
+            if ( this.InPagesConfigurationMode )
+            {
+                return;
+            }
+
+            if ( CurrentCheckInState?.DisableIdleRedirect == true )
             {
                 DisableIdleRedirectBlocks( true );
             }
@@ -730,7 +735,7 @@ namespace Rock.CheckIn
         /// <summary>
         /// Loads a check-in block to determine if it will require a selection or not. This is used to find the
         /// next page/block that does require a selection so that user can be redirected once to that block, 
-        /// rather than just continuously redirected to next/prev page blocks and possibly exceeding the maximum
+        /// rather than just continuously redirected to next/previous page blocks and possibly exceeding the maximum
         /// number of redirects.
         /// </summary>
         /// <param name="attributeKey">The attribute key.</param>
@@ -825,7 +830,7 @@ namespace Rock.CheckIn
                 CurrentCheckInState = new CheckInState( this.LocalDeviceConfig.CurrentKioskId.Value, this.LocalDeviceConfig.CurrentCheckinTypeId, this.LocalDeviceConfig.CurrentGroupTypeIds );
             }
 
-            
+
         }
     }
 }

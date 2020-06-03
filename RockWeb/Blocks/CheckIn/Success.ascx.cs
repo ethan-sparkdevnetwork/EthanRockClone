@@ -21,6 +21,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
+using System.Web;
 using System.Web.UI;
 using System.Web.UI.HtmlControls;
 
@@ -207,18 +208,32 @@ namespace RockWeb.Blocks.CheckIn
                         var successLavaTemplate = CurrentCheckInState.CheckInType.SuccessLavaTemplate;
                         lCheckinResultsHtml.Text = successLavaTemplate.ResolveMergeFields( mergeFields );
 
-                        if ( CurrentCheckInState.MobileLauncherHomePage.HasValue )
+                        if ( CurrentCheckInState.GenerateQRCodeForAttendanceSessions )
                         {
-                            var fakeAttendanceCheckInSessionGuidData = "CPL+" + string.Join( ",", CurrentCheckInState.CheckIn.CurrentFamily.AttendanceIds );
+                            HttpCookie attendanceSessionGuidsCookie = Request.Cookies[CheckInCookieKey.AttendanceSessionGuids];
+                            if ( attendanceSessionGuidsCookie == null )
+                            {
+                                attendanceSessionGuidsCookie = new HttpCookie( CheckInCookieKey.AttendanceSessionGuids );
+                                attendanceSessionGuidsCookie.Expires = RockDateTime.Now.AddHours( 24 );
+                                attendanceSessionGuidsCookie.Value = string.Empty;
+                            }
 
-                            var attendanceCheckInSessionCookie = new System.Web.HttpCookie( "AttendanceCheckInSession" );
-                            attendanceCheckInSessionCookie.Expires = RockDateTime.Now.AddSeconds( 60 );
-                            attendanceCheckInSessionCookie.Value = fakeAttendanceCheckInSessionGuidData;
-                            this.Page.Response.Cookies.Set( attendanceCheckInSessionCookie );
+                            var attendanceSessionGuids = attendanceSessionGuidsCookie.Value.Split( ',' ).AsGuidList();
+                            if ( CurrentCheckInState.CheckIn.CurrentFamily.AttendanceCheckinSessionGuid.HasValue )
+                            {
+                                attendanceSessionGuids.Add( CurrentCheckInState.CheckIn.CurrentFamily.AttendanceCheckinSessionGuid.Value );
+                            }
 
-                            //lCheckinResultsHtml.Text += "<div class='center-block'><img class='img-responsive center-block' src='https://api.qrserver.com/v1/create-qr-code/?size=250x250&amp;data=" + fakeAttendanceCheckInSessionGuidData + "' alt=''></div>";
-                            lCheckinResultsHtml.Text += "<div class='center-block'><img class='img-responsive center-block' src='https://api.qrserver.com/v1/create-qr-code/?size=250x250&amp;data=Example' alt=''></div>";
-                            DisableIdleRedirectBlocks( true );
+                            attendanceSessionGuidsCookie.Value = attendanceSessionGuids.AsDelimited(",");
+
+                            Response.Cookies.Set( attendanceSessionGuidsCookie );
+
+                            var guidListAsShortStringList = attendanceSessionGuids.Select( a => GuidHelper.ToShortString( a ) ).ToList().AsDelimited( "," );
+                            var qrCodeUrl = this.ResolveRockUrl( string.Format( "~/GetQRCode?data=PCL+{0}&outputType=svg", guidListAsShortStringList ) );
+
+                            lCheckinResultsHtml.Text += string.Format( "<div class='center-block'><img class='img-responsive center-block' src='{0}' alt=''></div>", qrCodeUrl );
+
+                            var guidsFromShortStringList = guidListAsShortStringList.Split( ',' ).Select( a => GuidHelper.FromShortString( a ) ).ToList();
                         }
 
                     }

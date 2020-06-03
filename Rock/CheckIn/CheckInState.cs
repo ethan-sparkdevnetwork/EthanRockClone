@@ -36,7 +36,6 @@ namespace Rock.CheckIn
         [DataMember]
         public Guid? HomePageOverride { get; set; }
 
-
         /// <summary>
         /// Gets or sets a value indicating whether checkin pages should disable IdleRedirect blocks
         /// </summary>
@@ -44,6 +43,14 @@ namespace Rock.CheckIn
         ///   <c>true</c> if [disable idle redirect]; otherwise, <c>false</c>.
         /// </value>
         public bool DisableIdleRedirect { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether [generate qr code for attendance sessions].
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [generate qr code for attendance sessions]; otherwise, <c>false</c>.
+        /// </value>
+        public bool GenerateQRCodeForAttendanceSessions { get; set; } = false;
 
         /// <summary>
         /// Gets or sets the device id

@@ -7,7 +7,8 @@ using System.Threading.Tasks;
 namespace Rock.Utility
 {
     /// <summary>
-    /// 
+    /// Helper class to convert a Guid to and from a ShortString Guid
+    /// See https://stackoverflow.com/a/40917033/1755417
     /// </summary>
     public static class GuidHelper
     {

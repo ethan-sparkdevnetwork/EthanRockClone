@@ -47,17 +47,18 @@ namespace RockWeb
                 var data = context.Request.QueryString["data"];
                 var outputType = context.Request.QueryString["outputType"] ?? string.Empty;
 
-                if (data.IsNullOrWhiteSpace())
+                if ( data.IsNullOrWhiteSpace() )
                 {
                     context.Response.StatusCode = System.Net.HttpStatusCode.BadRequest.ConvertToInt();
                     context.Response.StatusDescription = "data must be specified";
                     context.ApplicationInstance.CompleteRequest();
+                    return;
                 }
 
                 // 
                 var pixelsPerModule = context.Request.QueryString["pixelsPerModule"].AsIntegerOrNull() ?? 20;
 
-                using ( QRCodeGenerator qrGenerator = new QRCodeGenerator())
+                using ( QRCodeGenerator qrGenerator = new QRCodeGenerator() )
                 {
                     // ECCLevel is the Error Correction setting. see https://www.qrcode.com/en/about/error_correction.html
                     QRCodeData qrCodeData = qrGenerator.CreateQrCode( data, QRCodeGenerator.ECCLevel.Q );
@@ -99,7 +100,7 @@ namespace RockWeb
             }
         }
 
-        
+
         /// <summary>
         /// Gets a value indicating whether another request can use the <see cref="T:System.Web.IHttpHandler" /> instance.
         /// </summary>

@@ -3,6 +3,8 @@
 <asp:UpdatePanel ID="upnlContent" runat="server">
     <ContentTemplate>
 
+        <Rock:ModalAlert ID="maWarning" runat="server" />
+
         <%-- Edit Panel --%>
         <asp:Panel ID="pnlEditSettings" runat="server" Visible="false">
             <Rock:ModalDialog ID="mdEditSettings" runat="server" OnSaveClick="mdEditSettings_SaveClick" Title="Mobile Launcher Settings">
@@ -45,7 +47,6 @@
             }
 
             function geoLocationError_callback(p) {
-                debugger
                 window.location = "javascript:__doPostBack('<%=upnlContent.ClientID %>', 'GeoLocationCallback|Error|" + encodeURIComponent(p.message) + "')";
             }
 
@@ -84,8 +85,11 @@
                             <Rock:BootstrapButton ID="bbtnPhoneLookup" runat="server" Text="Phone Lookup" OnClick="bbtnPhoneLookup_Click" CssClass="btn btn-primary btn-block" />
                             <Rock:BootstrapButton ID="bbtnLogin" runat="server" Text="Login" OnClick="bbtnLogin_Click" CssClass="btn btn-default btn-block" />
                             <Rock:BootstrapButton ID="bbtnGetGeoLocation" runat="server" Text="Next" OnClick="bbtnGetGeoLocation_Click" DataLoadingText="Getting Location..." CssClass="btn btn-primary btn-block js-get-geolocation" />
+                            <Rock:BootstrapButton ID="bbtnTryAgain" runat="server" Text="Try Again" OnClick="bbtnTryAgain_Click" DataLoadingText="Check-in..." CssClass="btn btn-primary btn-block js-checkin-tryagain" />
                             <Rock:BootstrapButton ID="bbtnCheckin" runat="server" Text="Check-in" OnClick="bbtnCheckin_Click" DataLoadingText="Check-in..." CssClass="btn btn-primary btn-block js-checkin" />
                         </div>
+
+                        <asp:Literal ID="lCheckinQRCodeHtml" runat="server" />
 
                     </div>
                 </div>

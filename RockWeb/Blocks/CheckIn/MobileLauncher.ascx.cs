@@ -81,61 +81,113 @@ namespace RockWeb.Blocks.CheckIn
 
     #region Block Attributes for Text options
 
-    [TextField(
+    [CodeEditorField(
+        "Mobile check-in header",
+        Key = AttributeKey.MobileCheckinHeader,
+        Category = "Text",
+        DefaultValue = "Mobile Check-in",
+        EditorHeight = 100,
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
+        IsRequired = true,
+        Order = 1
+        )]
+
+
+    [CodeEditorField(
         "Identify you Prompt Template <span class='tip tip-lava'></span>",
         Key = AttributeKey.IdentifyYouPromptTemplate,
         Category = "Text",
         DefaultValue = "Before we proceed we'll need you to identify you for check-in.",
+        EditorHeight = 100,
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
         IsRequired = true,
-        Description = "" )]
+        Order = 2 )]
 
-    [TextField(
+    [CodeEditorField(
         "Allow Location Prompt <span class='tip tip-lava'></span>",
         Key = AttributeKey.AllowLocationPermissionPromptTemplate,
         Category = "Text",
         DefaultValue = "We need to determine your location to complete the check-in process. You'll notice a request window pop-up. Be sure to allow permissions. We'll only have permission to your location when you're visiting this site.",
+        EditorHeight = 100,
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
         IsRequired = true,
-        Description = "" )]
+        Order = 3 )]
 
-    [TextField(
+    [CodeEditorField(
         "Location Progress <span class='tip tip-lava'></span>",
         Key = AttributeKey.LocationProgress,
         Category = "Text",
         DefaultValue = "Determining location...",
+        EditorHeight = 100,
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
         IsRequired = true,
-        Description = "" )]
+        Order = 4 )]
 
-    [TextField(
+    [CodeEditorField(
         "Welcome Back <span class='tip tip-lava'></span>",
         Key = AttributeKey.WelcomeBackTemplate,
         Category = "Text",
         DefaultValue = "Hi {{ CurrentPerson.NickName }}! Great to see to see you back. Select the check-in button to get started.",
+        EditorHeight = 100,
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
         IsRequired = true,
-        Description = "" )]
+        Order = 5 )]
 
-    [TextField(
+    [CodeEditorField(
         "No Services <span class='tip tip-lava'></span>",
         Key = AttributeKey.NoScheduledDevicesAvailableTemplate,
         Category = "Text",
         DefaultValue = "Hi {{ CurrentPerson.NickName }}! There are currently no services ready for check-in at this time.",
+        EditorHeight = 100,
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
         IsRequired = true,
-        Description = "" )]
+        Order = 6 )]
 
-    [TextField(
+    [CodeEditorField(
         "Can't determine location. <span class='tip tip-lava'></span>",
         Key = AttributeKey.UnableToDetermineMobileLocationTemplate,
         Category = "Text",
         DefaultValue = "Hi {{ CurrentPerson.NickName }}! We can't determine your location. Please be sure to enable location permissions for your device.",
+        EditorHeight = 100,
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
         IsRequired = true,
-        Description = "" )]
+        Order = 7 )]
 
-    [TextField(
+    [CodeEditorField(
         "No Devices Found <span class='tip tip-lava'></span>",
         Key = AttributeKey.NoDevicesFoundTemplate,
         Category = "Text",
         DefaultValue = "Hi {{ CurrentPerson.NickName }}! You are not currently close enough to check-in. Please try again once you're closer to the campus.",
+        EditorHeight = 100,
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
         IsRequired = true,
-        Description = "" )]
+        Order = 8 )]
+
+    [TextField(
+        "Not Active Caption",
+        Key = AttributeKey.NotActiveTemplate,
+        Description = "Caption displayed when there are not any active options today.",
+        IsRequired = false,
+        DefaultValue = "There are no current or future schedules for this kiosk today!",
+        Category = "Text",
+        Order = 10 )]
+
+    [TextField(
+        "Not Active Yet Caption",
+        Key = AttributeKey.NotActiveYetTemplate,
+        Description = "Caption displayed when there are active options today, but none are active now. Use {0} for a countdown timer.",
+        IsRequired = false,
+        DefaultValue = "This kiosk is not active yet. Countdown until active: {0}.",
+        Category = "Text",
+        Order = 12 )]
+
+    [TextField(
+        "Closed Caption",
+        Key = AttributeKey.LocationClosedTemplate,
+        IsRequired = false,
+        DefaultValue = "This location is currently closed.",
+        Category = "Text",
+        Order = 14 )]
 
     #endregion Block Attributes for Text options
     public partial class MobileLauncher : CheckInBlock
@@ -163,6 +215,8 @@ namespace RockWeb.Blocks.CheckIn
 
             public const string LoginPage = "LoginPage";
 
+            public const string MobileCheckinHeader = "MobileCheckinHeader";
+
             public const string IdentifyYouPromptTemplate = "IdentifyYouPromptTemplate";
 
             public const string WelcomeBackTemplate = "WelcomeBackTemplate";
@@ -176,6 +230,13 @@ namespace RockWeb.Blocks.CheckIn
             public const string UnableToDetermineMobileLocationTemplate = "UnableToDetermineMobileLocationTemplate";
 
             public const string NoDevicesFoundTemplate = "NoDevicesFoundTemplate";
+
+            public const string NotActiveTemplate = "NotActiveTemplate";
+
+            public const string NotActiveYetTemplate = "NotActiveYetTemplate";
+
+            public const string LocationClosedTemplate = "LocationClosedTemplate";
+
         }
 
         #endregion Attribute Keys
@@ -294,9 +355,11 @@ namespace RockWeb.Blocks.CheckIn
         /// </summary>
         private void ShowDetails()
         {
+            lCheckinHeader.Text = this.GetAttributeValue( AttributeKey.MobileCheckinHeader );
             bbtnPhoneLookup.Visible = false;
             bbtnLogin.Visible = false;
             bbtnGetGeoLocation.Visible = false;
+            bbtnTryAgain.Visible = false;
             bbtnCheckin.Visible = false;
             hfGetGeoLocation.Value = false.ToJavaScriptValue();
 
@@ -307,14 +370,20 @@ namespace RockWeb.Blocks.CheckIn
             }
 
             var selectedCheckinType = GroupTypeCache.Get( this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId ).AsInteger() );
-            if ( selectedCheckinType == null )
-            {
-                lMessage.Text = "Unable to determine check-in configuration";
-                return;
-            }
+            var selectedAreaGroupTypes = this.GetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds )
+                .SplitDelimitedValues()
+                .AsIntegerList()
+                .Select( a => GroupTypeCache.Get( a ) )
+                .Where( a => a != null );
 
             var configuredTheme = this.GetAttributeValue( AttributeKey.CheckinTheme );
             SetSelectedTheme( configuredTheme );
+
+            if ( selectedCheckinType == null || !selectedAreaGroupTypes.Any() )
+            {
+                lMessage.Text = "Mobile check-in is not configured.";
+                return;
+            }
 
             // Identification (Login or COOKIE_UNSECURED_PERSON_IDENTIFIER)
             Person mobilePerson = GetMobilePerson();
@@ -337,6 +406,8 @@ namespace RockWeb.Blocks.CheckIn
                 return;
             }
 
+            
+
             // they already approved location permissions so let the Geo Location JavaScript return the current lat/long,
             // then ProcessGeolocationCallback will take care of the rest of the logic
             // this might take a few seconds, so display a progress message
@@ -352,7 +423,7 @@ namespace RockWeb.Blocks.CheckIn
         {
             if ( LocalDeviceConfig.CurrentTheme != theme )
             {
-                LocalDeviceConfig.CurrentTheme = ddlTheme.SelectedValue;
+                LocalDeviceConfig.CurrentTheme = theme;
                 SaveState();
             }
 
@@ -602,12 +673,13 @@ namespace RockWeb.Blocks.CheckIn
             var checkInState = CurrentCheckInState;
 
             // override the HomePage block setting to the mobile home page
-            checkInState.HomePageOverride = this.PageCache.Guid;
-
+            LocalDeviceConfig.HomePageOverride = this.PageCache.Guid;
 
             // turn off the idle redirect blocks since we don't a person's mobile device to do that
-            checkInState.DisableIdleRedirect = true;
+            LocalDeviceConfig.DisableIdleRedirect = true;
 
+            // we want the SuccessBlock to generate a QR Code that contains the AttendanceSession(s)
+            LocalDeviceConfig.GenerateQRCodeForAttendanceSessions = true;
 
             checkInState.CheckIn = new CheckInStatus();
             checkInState.CheckIn.SearchType = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CHECKIN_SEARCH_TYPE_FAMILY_ID );
@@ -642,11 +714,9 @@ namespace RockWeb.Blocks.CheckIn
             checkInState.CheckIn.Families = new List<CheckInFamily>();
             checkInState.CheckIn.Families.Add( checkInFamily );
 
-            ProcessForFamily
+            var rockContext = new RockContext();
 
-            SaveState();
-
-            NavigateToNextPage();
+            ProcessSelection( maWarning );
         }
 
         #endregion
@@ -768,13 +838,66 @@ namespace RockWeb.Blocks.CheckIn
                 lMessage.Text = GetMessageText( AttributeKey.NoDevicesFoundTemplate );
                 return;
             }
-            else
+
+            // device found for mobile person's location
+            LocalDeviceConfig.CurrentKioskId = device.Id;
+
+            var checkinStatus = CheckinConfigurationHelper.GetCheckinStatus( CurrentCheckInState.Kiosk, CurrentCheckInState.ConfiguredGroupTypes, CurrentCheckInState.CheckInType );
+
+            bbtnTryAgain.Visible = checkinStatus != CheckinConfigurationHelper.CheckinStatus.Active;
+
+            switch ( checkinStatus )
             {
-                // device found for mobile person's location
-                lMessage.Text = GetMessageText( AttributeKey.WelcomeBackTemplate );
-                bbtnCheckin.Visible = true;
-                return;
+                case CheckinConfigurationHelper.CheckinStatus.Inactive:
+                    {
+                        lMessage.Text = GetMessageText( AttributeKey.NotActiveTemplate );
+                        break;
+                    }
+
+                case CheckinConfigurationHelper.CheckinStatus.TemporarilyClosed:
+                    {
+                        DateTime activeAt = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes ).Select( g => g.NextActiveTime ).Min();
+                        if ( activeAt == DateTime.MaxValue )
+                        {
+                            lMessage.Text = GetMessageText( AttributeKey.LocationClosedTemplate );
+                        }
+                        else
+                        {
+                            lMessage.Text = GetMessageText( AttributeKey.LocationClosedTemplate );
+                        }
+
+                        break;
+                    }
+
+                case CheckinConfigurationHelper.CheckinStatus.Closed:
+                    {
+                        lMessage.Text = GetMessageText( AttributeKey.LocationClosedTemplate );
+                        break;
+                    }
+
+                case CheckinConfigurationHelper.CheckinStatus.Active:
+                default:
+                    {
+                        lMessage.Text = GetMessageText( AttributeKey.WelcomeBackTemplate );
+                        var qrCodeImageUrl = GetAttendanceSessionsQrCodeImageUrl();
+                        if ( qrCodeImageUrl.IsNotNullOrWhiteSpace() )
+                        {
+                            lCheckinQRCodeHtml.Text = string.Format( "<div class='center-block'><img class='img-responsive center-block' src='{0}' alt=''></div>", qrCodeImageUrl );
+                            lCheckinQRCodeHtml.Visible = true;
+                        }
+                        else
+                        {
+                            lCheckinQRCodeHtml.Visible = false;
+                        }
+
+                        bbtnCheckin.Visible = true;
+                        bbtnTryAgain.Visible = false;
+                        break;
+                    }
             }
+
+            return;
+
         }
 
         /// <summary>
@@ -786,6 +909,7 @@ namespace RockWeb.Blocks.CheckIn
         {
             var mobilePerson = this.GetMobilePerson();
             var mergeFields = LavaHelper.GetCommonMergeFields( this.RockPage, mobilePerson );
+            mergeFields.Add( "Kiosk", CurrentCheckInState.Kiosk );
 
             string messageLavaTemplate = this.GetAttributeValue( messageLavaTemplateAttributeKey );
 
@@ -800,11 +924,11 @@ namespace RockWeb.Blocks.CheckIn
         /// <returns></returns>
         public Device GetClosestKioskByGeoFencing( double latitude, double longitude )
         {
-            var checkInDeviceTypeId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.DEVICE_TYPE_CHECKIN_KIOSK ).Id;
+            var deviceTypeCheckinKioskValueId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.DEVICE_TYPE_CHECKIN_KIOSK ).Id;
 
             using ( var rockContext = new RockContext() )
             {
-                IQueryable<Device> kioskQuery = new DeviceService( rockContext ).GetDevicesByGeocode( latitude, longitude, checkInDeviceTypeId );
+                IQueryable<Device> kioskQuery = new DeviceService( rockContext ).GetDevicesByGeocode( latitude, longitude, deviceTypeCheckinKioskValueId );
                 List<int> allowedDeviceIds = this.GetAttributeValue( AttributeKey.DeviceIdList ).SplitDelimitedValues().AsIntegerList();
                 if ( allowedDeviceIds.Any() )
                 {
@@ -815,6 +939,16 @@ namespace RockWeb.Blocks.CheckIn
 
                 return kioskQuery.OrderBy( a => a.Location.GeoPoint.Distance( mobileGeoPoint ) ).FirstOrDefault();
             }
+        }
+
+        /// <summary>
+        /// Handles the Click event of the bbtnTryAgain control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void bbtnTryAgain_Click( object sender, EventArgs e )
+        {
+            NavigateToCurrentPageReference();
         }
     }
 }

@@ -27,30 +27,7 @@ namespace Rock.CheckIn
     [DataContract]
     public class CheckInState
     {
-        /// <summary>
-        /// Gets home page Guid to use instead of the one configured in <seealso cref="CheckInBlock"/>'s HomePage block setting.
-        /// This is handy for things such as a checkin that start with the MobileLauncher Page
-        /// </summary>
-        /// <value>
-        /// </value>
-        [DataMember]
-        public Guid? HomePageOverride { get; set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether checkin pages should disable IdleRedirect blocks
-        /// </summary>
-        /// <value>
-        ///   <c>true</c> if [disable idle redirect]; otherwise, <c>false</c>.
-        /// </value>
-        public bool DisableIdleRedirect { get; set; } = false;
-
-        /// <summary>
-        /// Gets or sets a value indicating whether [generate qr code for attendance sessions].
-        /// </summary>
-        /// <value>
-        ///   <c>true</c> if [generate qr code for attendance sessions]; otherwise, <c>false</c>.
-        /// </value>
-        public bool GenerateQRCodeForAttendanceSessions { get; set; } = false;
+        
 
         /// <summary>
         /// Gets or sets the device id
@@ -244,6 +221,30 @@ namespace Rock.CheckIn
         /// The current group type ids.
         /// </value>
         public List<int> CurrentGroupTypeIds { get; set; }
+
+        /// <summary>
+        /// Gets home page Guid to use instead of the one configured in <seealso cref="CheckInBlock"/>'s HomePage block setting.
+        /// This is handy for things such as a checkin that start with the MobileLauncher Page
+        /// </summary>
+        /// <value>
+        /// </value>
+        public Guid? HomePageOverride { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether checkin pages should disable IdleRedirect blocks
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [disable idle redirect]; otherwise, <c>false</c>.
+        /// </value>
+        public bool DisableIdleRedirect { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether [generate qr code for attendance sessions].
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [generate qr code for attendance sessions]; otherwise, <c>false</c>.
+        /// </value>
+        public bool GenerateQRCodeForAttendanceSessions { get; set; } = false;
 
         /// <summary>
         /// Determines whether this instance is configured.

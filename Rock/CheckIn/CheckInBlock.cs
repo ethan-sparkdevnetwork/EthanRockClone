@@ -17,10 +17,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
+using System.Web;
 using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.Utility;
 using Rock.Web;
 using Rock.Web.Cache;
 using Rock.Web.UI;
@@ -364,17 +365,26 @@ namespace Rock.CheckIn
                 return;
             }
 
-            if ( CurrentCheckInState?.DisableIdleRedirect == true )
-            {
-                DisableIdleRedirectBlocks( true );
-            }
-
             // Tell the browsers to not cache any pages that have a block that inherits from CheckinBlock. This will help prevent browser using stale copy of checkin pages which could cause labels to get reprinted, and other expected things.
             Page.Response.Cache.SetCacheability( System.Web.HttpCacheability.NoCache );
             Page.Response.Cache.SetExpires( DateTime.UtcNow.AddHours( -1 ) );
             Page.Response.Cache.SetNoStore();
 
             GetState();
+        }
+
+        /// <summary>
+        /// Raises the <see cref="E:System.Web.UI.Control.Load" /> event.
+        /// </summary>
+        /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
+        protected override void OnLoad( EventArgs e )
+        {
+            base.OnLoad( e );
+
+            if ( LocalDeviceConfig?.DisableIdleRedirect == true )
+            {
+                DisableIdleRedirectBlocks( true );
+            }
         }
 
         /// <summary>
@@ -555,7 +565,7 @@ namespace Rock.CheckIn
         /// </summary>
         protected virtual void NavigateToHomePage()
         {
-            Guid? homePageOverride = CurrentCheckInState?.HomePageOverride;
+            Guid? homePageOverride = LocalDeviceConfig?.HomePageOverride;
 
             if ( homePageOverride.HasValue )
             {
@@ -829,8 +839,29 @@ namespace Rock.CheckIn
             {
                 CurrentCheckInState = new CheckInState( this.LocalDeviceConfig.CurrentKioskId.Value, this.LocalDeviceConfig.CurrentCheckinTypeId, this.LocalDeviceConfig.CurrentGroupTypeIds );
             }
+        }
 
+        /// <summary>
+        /// Gets the URL for the QRCode for the current AttendanceSession(s) that are in the <seealso cref="CheckInCookieKey.AttendanceSessionGuids"/> cookie.
+        /// </summary>
+        /// <returns></returns>
+        public string GetAttendanceSessionsQrCodeImageUrl()
+        {
+            HttpCookie attendanceSessionGuidsCookie = Request.Cookies[CheckInCookieKey.AttendanceSessionGuids];
+            if ( attendanceSessionGuidsCookie == null )
+            {
+                return string.Empty;
+            }
 
+            var attendanceSessionGuids = attendanceSessionGuidsCookie.Value.Split( ',' ).AsGuidList();
+
+            // #### try png ####
+            var guidListAsShortStringList = attendanceSessionGuids.Select( a => GuidHelper.ToShortString( a ) ).ToList().AsDelimited( "," );
+            var qrCodeData = HttpUtility.UrlEncode( "PCL+" + guidListAsShortStringList );
+
+            var qrCodeUrl = this.ResolveRockUrl( string.Format( "~/GetQRCode.ashx?data={0}&outputType=svg", qrCodeData ) );
+
+            return qrCodeUrl;
         }
     }
 }

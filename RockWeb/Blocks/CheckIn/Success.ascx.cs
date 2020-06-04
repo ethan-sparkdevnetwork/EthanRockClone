@@ -196,6 +196,7 @@ namespace RockWeb.Blocks.CheckIn
                                 .ThenBy( l => l.Order )
                                 .ToList()
                                 .ForEach( l => l.LabelFile = urlRoot + l.LabelFile );
+
                             AddLabelScript( printFromClient.ToJson() );
                         }
 
@@ -208,13 +209,13 @@ namespace RockWeb.Blocks.CheckIn
                         var successLavaTemplate = CurrentCheckInState.CheckInType.SuccessLavaTemplate;
                         lCheckinResultsHtml.Text = successLavaTemplate.ResolveMergeFields( mergeFields );
 
-                        if ( CurrentCheckInState.GenerateQRCodeForAttendanceSessions )
+                        if ( LocalDeviceConfig.GenerateQRCodeForAttendanceSessions )
                         {
                             HttpCookie attendanceSessionGuidsCookie = Request.Cookies[CheckInCookieKey.AttendanceSessionGuids];
                             if ( attendanceSessionGuidsCookie == null )
                             {
                                 attendanceSessionGuidsCookie = new HttpCookie( CheckInCookieKey.AttendanceSessionGuids );
-                                attendanceSessionGuidsCookie.Expires = RockDateTime.Now.AddHours( 24 );
+                                attendanceSessionGuidsCookie.Expires = RockDateTime.Now.AddHours( 8 );
                                 attendanceSessionGuidsCookie.Value = string.Empty;
                             }
 
@@ -224,16 +225,12 @@ namespace RockWeb.Blocks.CheckIn
                                 attendanceSessionGuids.Add( CurrentCheckInState.CheckIn.CurrentFamily.AttendanceCheckinSessionGuid.Value );
                             }
 
-                            attendanceSessionGuidsCookie.Value = attendanceSessionGuids.AsDelimited(",");
+                            attendanceSessionGuidsCookie.Value = attendanceSessionGuids.AsDelimited( "," );
 
                             Response.Cookies.Set( attendanceSessionGuidsCookie );
 
-                            var guidListAsShortStringList = attendanceSessionGuids.Select( a => GuidHelper.ToShortString( a ) ).ToList().AsDelimited( "," );
-                            var qrCodeUrl = this.ResolveRockUrl( string.Format( "~/GetQRCode?data=PCL+{0}&outputType=svg", guidListAsShortStringList ) );
-
-                            lCheckinResultsHtml.Text += string.Format( "<div class='center-block'><img class='img-responsive center-block' src='{0}' alt=''></div>", qrCodeUrl );
-
-                            var guidsFromShortStringList = guidListAsShortStringList.Split( ',' ).Select( a => GuidHelper.FromShortString( a ) ).ToList();
+                            // ###TODO####, is this the HTML we want for this?
+                            lCheckinQRCodeHtml.Text = string.Format( "<div class='center-block'><img class='img-responsive center-block' src='{0}' alt=''></div>", GetAttendanceSessionsQrCodeImageUrl() );
                         }
 
                     }
@@ -244,6 +241,8 @@ namespace RockWeb.Blocks.CheckIn
                 }
             }
         }
+
+        
 
         /// <summary>
         /// Handles the Click event of the lbDone control.

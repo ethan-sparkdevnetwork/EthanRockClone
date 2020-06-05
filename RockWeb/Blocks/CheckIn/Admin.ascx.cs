@@ -144,6 +144,18 @@ namespace RockWeb.Blocks.CheckIn
         /// </summary>
         private void ShowDetail()
         {
+            // just in case the device config home page override got set (from the MobileLauncher Block)
+            // un-override it
+            LocalDeviceConfig.HomePageOverride = null;
+
+            // just in case the device config DisableIdleRedirect got set (from the MobileLauncher Block) make sure the IdleRedirect mode is enabled
+            LocalDeviceConfig.DisableIdleRedirect = false;
+
+            // just in case the device config GenerateQRCodeForAttendanceSessions got set (from the MobileLauncher Block), turn off the QR Code option
+            LocalDeviceConfig.GenerateQRCodeForAttendanceSessions = false;
+
+            SaveState();
+
             bool enableLocationSharing = GetAttributeValue( AttributeKey.EnableLocationSharing ).AsBoolean();
             bool allowManualSetup = GetAttributeValue( AttributeKey.AllowManualSetup ).AsBoolean( true );
 
@@ -498,7 +510,7 @@ tryGeoLocation();
             if ( LocalDeviceConfig.CurrentTheme != theme )
             {
                 LocalDeviceConfig.CurrentTheme = ddlTheme.SelectedValue;
-                SaveState();
+                LocalDeviceConfig.SaveToCookie( this.Page );
             }
 
             if ( !RockPage.Site.Theme.Equals( LocalDeviceConfig.CurrentTheme, StringComparison.OrdinalIgnoreCase ) )
@@ -567,6 +579,9 @@ tryGeoLocation();
             LocalDeviceConfig.CurrentKioskId = ddlKiosk.SelectedValueAsInt();
             LocalDeviceConfig.CurrentCheckinTypeId = ddlCheckinType.SelectedValueAsInt();
             LocalDeviceConfig.CurrentGroupTypeIds = groupTypeIds;
+
+            LocalDeviceConfig.SaveToCookie( this.Page );
+
             CurrentCheckInState = null;
             CurrentWorkflow = null;
             SaveState();

@@ -27,8 +27,6 @@ namespace Rock.CheckIn
     [DataContract]
     public class CheckInState
     {
-        
-
         /// <summary>
         /// Gets or sets the device id
         /// </summary>
@@ -187,7 +185,7 @@ namespace Rock.CheckIn
     /// Checkin Device Configuration
     /// Used for the Checkin Cookie and REST status operations
     /// </summary>
-    [System.Diagnostics.DebuggerDisplay( "CurrentTheme:{CurrentTheme}, CurrentKioskId:{CurrentKioskId}, CurrentCheckinTypeId:{CurrentCheckinTypeId}, CurrentGroupTypeIds:{CurrentGroupTypeIds}" )]
+    [System.Diagnostics.DebuggerDisplay( "CurrentTheme:{CurrentTheme}, CurrentKioskId:{CurrentKioskId}, CurrentCheckinTypeId:{CurrentCheckinTypeId}, CurrentGroupTypeIds:{CurrentGroupTypeIds}.." )]
     public class LocalDeviceConfiguration
     {
         /// <summary>
@@ -255,6 +253,35 @@ namespace Rock.CheckIn
         public bool IsConfigured()
         {
             return this.CurrentKioskId.HasValue && this.CurrentGroupTypeIds.Any() && this.CurrentCheckinTypeId.HasValue;
+        }
+
+        /// <summary>
+        /// Saves the LocalDeviceConfig to the <seealso cref="CheckInCookieKey.LocalDeviceConfig"/> cookie
+        /// </summary>
+        /// <param name="page">The page.</param>
+        public void SaveToCookie( System.Web.UI.Page page )
+        {
+            var localDeviceConfigCookie = page.Request.Cookies[CheckInCookieKey.LocalDeviceConfig];
+            if ( localDeviceConfigCookie == null )
+            {
+                localDeviceConfigCookie = new System.Web.HttpCookie( CheckInCookieKey.LocalDeviceConfig );
+            }
+
+            localDeviceConfigCookie.Expires = RockDateTime.Now.AddYears( 1 );
+            localDeviceConfigCookie.Value = this.ToJson( Newtonsoft.Json.Formatting.None );
+
+            page.Response.Cookies.Set( localDeviceConfigCookie );
+        }
+
+        /// <summary>
+        /// Gets from cookie.
+        /// </summary>
+        /// <param name="page">The page.</param>
+        /// <returns></returns>
+        public LocalDeviceConfiguration GetFromCookie( System.Web.UI.Page page )
+        {
+            var localDeviceConfigCookie = page.Request.Cookies[CheckInCookieKey.LocalDeviceConfig];
+            return localDeviceConfigCookie?.Value?.FromJsonOrNull<LocalDeviceConfiguration>();
         }
     }
 

@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // </copyright>
-//
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -78,7 +77,6 @@ namespace RockWeb.Blocks.CheckIn
 
     #endregion Block Attributes
 
-
     #region Block Attributes for Text options
 
     [CodeEditorField(
@@ -91,7 +89,6 @@ namespace RockWeb.Blocks.CheckIn
         IsRequired = true,
         Order = 1
         )]
-
 
     [CodeEditorField(
         "Identify you Prompt Template <span class='tip tip-lava'></span>",
@@ -163,36 +160,17 @@ namespace RockWeb.Blocks.CheckIn
         IsRequired = true,
         Order = 8 )]
 
-    [TextField(
-        "Not Active Caption",
-        Key = AttributeKey.NotActiveTemplate,
-        Description = "Caption displayed when there are not any active options today.",
+    [CodeEditorField( "No People Message",
+        AttributeKey.NoPeopleMessage,
+        Description = "Text to display when there is not anyone in the family that can check-in",
         IsRequired = false,
-        DefaultValue = "There are no current or future schedules for this kiosk today!",
+        DefaultValue = "Sorry, no one in your family is eligible to check-in at this location.",
         Category = "Text",
-        Order = 10 )]
-
-    [TextField(
-        "Not Active Yet Caption",
-        Key = AttributeKey.NotActiveYetTemplate,
-        Description = "Caption displayed when there are active options today, but none are active now. Use {0} for a countdown timer.",
-        IsRequired = false,
-        DefaultValue = "This kiosk is not active yet. Countdown until active: {0}.",
-        Category = "Text",
-        Order = 12 )]
-
-    [TextField(
-        "Closed Caption",
-        Key = AttributeKey.LocationClosedTemplate,
-        IsRequired = false,
-        DefaultValue = "This location is currently closed.",
-        Category = "Text",
-        Order = 14 )]
+        Order = 8 )]
 
     #endregion Block Attributes for Text options
     public partial class MobileLauncher : CheckInBlock
     {
-
         #region Attribute Keys
 
         private static class AttributeKey
@@ -231,12 +209,7 @@ namespace RockWeb.Blocks.CheckIn
 
             public const string NoDevicesFoundTemplate = "NoDevicesFoundTemplate";
 
-            public const string NotActiveTemplate = "NotActiveTemplate";
-
-            public const string NotActiveYetTemplate = "NotActiveYetTemplate";
-
-            public const string LocationClosedTemplate = "LocationClosedTemplate";
-
+            public const string NoPeopleMessage = "NoPeopleMessage";
         }
 
         #endregion Attribute Keys
@@ -379,6 +352,8 @@ namespace RockWeb.Blocks.CheckIn
             var configuredTheme = this.GetAttributeValue( AttributeKey.CheckinTheme );
             SetSelectedTheme( configuredTheme );
 
+            UpdateConfigurationFromBlockSettings();
+
             if ( selectedCheckinType == null || !selectedAreaGroupTypes.Any() )
             {
                 lMessage.Text = "Mobile check-in is not configured.";
@@ -406,13 +381,39 @@ namespace RockWeb.Blocks.CheckIn
                 return;
             }
 
-            
-
             // they already approved location permissions so let the Geo Location JavaScript return the current lat/long,
             // then ProcessGeolocationCallback will take care of the rest of the logic
             // this might take a few seconds, so display a progress message
             lMessage.Text = GetMessageText( AttributeKey.LocationProgress );
             EnableGeoLocationScript();
+        }
+
+        /// <summary>
+        /// Updates the configuration from block settings.
+        /// </summary>
+        private void UpdateConfigurationFromBlockSettings()
+        {
+            var configuredCheckinTypeId = this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId ).AsIntegerOrNull();
+
+            LocalDeviceConfig.CurrentCheckinTypeId = configuredCheckinTypeId;
+            LocalDeviceConfig.CurrentGroupTypeIds = this.GetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds ).SplitDelimitedValues().AsIntegerList();
+
+            LocalDeviceConfig.CurrentTheme = this.GetAttributeValue( AttributeKey.CheckinTheme );
+
+            // override the HomePage block setting to the mobile home page
+            LocalDeviceConfig.HomePageOverride = this.PageCache.Guid;
+
+            // turn off the idle redirect blocks since we don't a person's mobile device to do that
+            LocalDeviceConfig.DisableIdleRedirect = true;
+
+            // we want the SuccessBlock to generate a QR Code that contains the AttendanceSession(s)
+            LocalDeviceConfig.GenerateQRCodeForAttendanceSessions = true;
+
+            LocalDeviceConfig.SaveToCookie( this.Page );
+
+            // create new checkin state since we are starting a new checkin sessions
+            this.CurrentCheckInState = new CheckInState( this.LocalDeviceConfig );
+            SaveState();
         }
 
         /// <summary>
@@ -424,7 +425,7 @@ namespace RockWeb.Blocks.CheckIn
             if ( LocalDeviceConfig.CurrentTheme != theme )
             {
                 LocalDeviceConfig.CurrentTheme = theme;
-                SaveState();
+                LocalDeviceConfig.SaveToCookie( this.Page );
             }
 
             if ( !RockPage.Site.Theme.Equals( LocalDeviceConfig.CurrentTheme, StringComparison.OrdinalIgnoreCase ) )
@@ -635,7 +636,7 @@ namespace RockWeb.Blocks.CheckIn
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void Block_BlockUpdated( object sender, EventArgs e )
         {
-            //
+            // nothing needed here
         }
 
         /// <summary>
@@ -645,12 +646,15 @@ namespace RockWeb.Blocks.CheckIn
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void bbtnCheckin_Click( object sender, EventArgs e )
         {
-            var configuredCheckinTypeId = this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId ).AsIntegerOrNull();
+            UpdateConfigurationFromBlockSettings();
 
-            LocalDeviceConfig.CurrentCheckinTypeId = configuredCheckinTypeId;
-            LocalDeviceConfig.CurrentGroupTypeIds = this.GetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds ).SplitDelimitedValues().AsIntegerList();
-
-            LocalDeviceConfig.CurrentTheme = this.GetAttributeValue( AttributeKey.CheckinTheme );
+            // checkin status might have changed after the Checkin Button was displayed, so make sure the kiosk is still active
+            var checkinStatus = CheckinConfigurationHelper.GetCheckinStatus( CurrentCheckInState.Kiosk, CurrentCheckInState.ConfiguredGroupTypes, CurrentCheckInState.CheckInType );
+            if ( checkinStatus != CheckinConfigurationHelper.CheckinStatus.Active )
+            {
+                RefreshCheckinStatusInformation( checkinStatus );
+                return;
+            }
 
             var latitude = hfLatitude.Value.AsDoubleOrNull();
             var longitude = hfLongitude.Value.AsDoubleOrNull();
@@ -669,17 +673,9 @@ namespace RockWeb.Blocks.CheckIn
             }
 
             LocalDeviceConfig.CurrentKioskId = device.Id;
+            SaveState();
 
             var checkInState = CurrentCheckInState;
-
-            // override the HomePage block setting to the mobile home page
-            LocalDeviceConfig.HomePageOverride = this.PageCache.Guid;
-
-            // turn off the idle redirect blocks since we don't a person's mobile device to do that
-            LocalDeviceConfig.DisableIdleRedirect = true;
-
-            // we want the SuccessBlock to generate a QR Code that contains the AttendanceSession(s)
-            LocalDeviceConfig.GenerateQRCodeForAttendanceSessions = true;
 
             checkInState.CheckIn = new CheckInStatus();
             checkInState.CheckIn.SearchType = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CHECKIN_SEARCH_TYPE_FAMILY_ID );
@@ -716,7 +712,38 @@ namespace RockWeb.Blocks.CheckIn
 
             var rockContext = new RockContext();
 
-            ProcessSelection( maWarning );
+            SaveState();
+
+            var noMatchingPeopleMessage = this.GetAttributeValue( AttributeKey.NoPeopleMessage );
+
+            Func<bool> doNotProceedCondition = () =>
+            {
+                var noMatchingFamilies =
+                    (
+                        CurrentCheckInState.CheckIn.Families.All( f => f.People.Count == 0 ) &&
+                        CurrentCheckInState.CheckIn.Families.All( f => f.Action == CheckinAction.CheckIn ) // not sure this is needed
+                    )
+                    &&
+                    (
+                        !CurrentCheckInState.CheckInType.AllowCheckout ||
+                        (
+                            CurrentCheckInState.CheckInType.AllowCheckout &&
+                            CurrentCheckInState.CheckIn.Families.All( f => f.CheckOutPeople.Count == 0 )
+                        )
+                    );
+
+                if ( noMatchingFamilies )
+                {
+                    maWarning.Show( noMatchingPeopleMessage, Rock.Web.UI.Controls.ModalAlertType.None );
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            };
+
+            ProcessSelection( maWarning, doNotProceedCondition, noMatchingPeopleMessage );
         }
 
         #endregion
@@ -761,8 +788,6 @@ namespace RockWeb.Blocks.CheckIn
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void ddlCheckinType_SelectedIndexChanged( object sender, EventArgs e )
         {
-            // TODO, needed?
-
             var selectedDeviceIds = lbDevices.SelectedValuesAsInt;
             BindAreas( selectedDeviceIds );
         }
@@ -841,16 +866,35 @@ namespace RockWeb.Blocks.CheckIn
 
             // device found for mobile person's location
             LocalDeviceConfig.CurrentKioskId = device.Id;
+            LocalDeviceConfig.SaveToCookie( this.Page );
+
+            // create new checkin state since we are starting a new checkin sessions
+            this.CurrentCheckInState = new CheckInState( this.LocalDeviceConfig );
+            SaveState();
 
             var checkinStatus = CheckinConfigurationHelper.GetCheckinStatus( CurrentCheckInState.Kiosk, CurrentCheckInState.ConfiguredGroupTypes, CurrentCheckInState.CheckInType );
 
-            bbtnTryAgain.Visible = checkinStatus != CheckinConfigurationHelper.CheckinStatus.Active;
+            RefreshCheckinStatusInformation( checkinStatus );
+        }
+
+        /// <summary>
+        /// Refreshes the checkin status information.
+        /// </summary>
+        /// <param name="checkinStatus">The checkin status.</param>
+        private void RefreshCheckinStatusInformation( Rock.CheckIn.CheckinConfigurationHelper.CheckinStatus checkinStatus )
+        {
+            if ( checkinStatus != CheckinConfigurationHelper.CheckinStatus.Active )
+            {
+                bbtnTryAgain.Visible = true;
+                bbtnCheckin.Visible = false;
+                lCheckinQRCodeHtml.Visible = false;
+            }
 
             switch ( checkinStatus )
             {
                 case CheckinConfigurationHelper.CheckinStatus.Inactive:
                     {
-                        lMessage.Text = GetMessageText( AttributeKey.NotActiveTemplate );
+                        lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
                         break;
                     }
 
@@ -859,11 +903,11 @@ namespace RockWeb.Blocks.CheckIn
                         DateTime activeAt = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes ).Select( g => g.NextActiveTime ).Min();
                         if ( activeAt == DateTime.MaxValue )
                         {
-                            lMessage.Text = GetMessageText( AttributeKey.LocationClosedTemplate );
+                            lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
                         }
                         else
                         {
-                            lMessage.Text = GetMessageText( AttributeKey.LocationClosedTemplate );
+                            lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
                         }
 
                         break;
@@ -871,7 +915,7 @@ namespace RockWeb.Blocks.CheckIn
 
                 case CheckinConfigurationHelper.CheckinStatus.Closed:
                     {
-                        lMessage.Text = GetMessageText( AttributeKey.LocationClosedTemplate );
+                        lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
                         break;
                     }
 
@@ -895,9 +939,6 @@ namespace RockWeb.Blocks.CheckIn
                         break;
                     }
             }
-
-            return;
-
         }
 
         /// <summary>
@@ -912,6 +953,8 @@ namespace RockWeb.Blocks.CheckIn
             mergeFields.Add( "Kiosk", CurrentCheckInState.Kiosk );
 
             string messageLavaTemplate = this.GetAttributeValue( messageLavaTemplateAttributeKey );
+            DateTime nextActiveTime = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes ).Select( g => g.NextActiveTime ).Min();
+            mergeFields.Add( "NextActiveTime", nextActiveTime );
 
             return messageLavaTemplate.ResolveMergeFields( mergeFields );
         }

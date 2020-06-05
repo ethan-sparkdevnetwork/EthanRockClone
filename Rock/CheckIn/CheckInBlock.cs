@@ -785,20 +785,11 @@ namespace Rock.CheckIn
         }
 
         /// <summary>
-        /// Saves the current state of the kiosk and workflow
+        /// Saves the current state of the LocalDeviceConfig, Kiosk, and workflow
         /// </summary>
         protected void SaveState()
         {
-            var localDeviceConfigCookie = this.Page.Request.Cookies[CheckInCookieKey.LocalDeviceConfig];
-            if ( localDeviceConfigCookie == null )
-            {
-                localDeviceConfigCookie = new System.Web.HttpCookie( CheckInCookieKey.LocalDeviceConfig );
-            }
-
-            localDeviceConfigCookie.Expires = RockDateTime.Now.AddYears( 1 );
-            localDeviceConfigCookie.Value = this.LocalDeviceConfig.ToJson( Newtonsoft.Json.Formatting.None );
-
-            this.Page.Response.Cookies.Set( localDeviceConfigCookie );
+            this.LocalDeviceConfig.SaveToCookie( this.Page );
 
             Session[SessionKey.CheckInWorkflow] = CurrentWorkflow;
 
@@ -817,8 +808,7 @@ namespace Rock.CheckIn
         /// </summary>
         private void GetState()
         {
-            var localDeviceConfigCookie = this.Page.Request.Cookies[CheckInCookieKey.LocalDeviceConfig];
-            this.LocalDeviceConfig = localDeviceConfigCookie?.Value?.FromJsonOrNull<LocalDeviceConfiguration>();
+            this.LocalDeviceConfig = LocalDeviceConfig.GetFromCookie( this.Page );
 
             if ( this.LocalDeviceConfig == null )
             {

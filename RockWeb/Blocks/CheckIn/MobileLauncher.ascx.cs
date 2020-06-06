@@ -38,7 +38,7 @@ namespace RockWeb.Blocks.CheckIn
     /// <summary>
     /// 
     /// </summary>
-    [DisplayName( "Mobile Launcher" )]
+    [DisplayName( "Mobile Check-in Launcher" )]
     [Category( "Check-in" )]
     [Description( "Launch page for checking in from a person's mobile device." )]
 
@@ -165,6 +165,8 @@ namespace RockWeb.Blocks.CheckIn
         Description = "Text to display when there is not anyone in the family that can check-in",
         IsRequired = false,
         DefaultValue = "Sorry, no one in your family is eligible to check-in at this location.",
+        EditorHeight = 100,
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
         Category = "Text",
         Order = 8 )]
 
@@ -350,6 +352,7 @@ namespace RockWeb.Blocks.CheckIn
                 .Where( a => a != null );
 
             var configuredTheme = this.GetAttributeValue( AttributeKey.CheckinTheme );
+
             SetSelectedTheme( configuredTheme );
 
             UpdateConfigurationFromBlockSettings();
@@ -422,6 +425,11 @@ namespace RockWeb.Blocks.CheckIn
         /// <param name="theme">The theme.</param>
         private void SetSelectedTheme( string theme )
         {
+            if ( theme.IsNullOrWhiteSpace() )
+            {
+                return;
+            }
+
             if ( LocalDeviceConfig.CurrentTheme != theme )
             {
                 LocalDeviceConfig.CurrentTheme = theme;
@@ -434,7 +442,13 @@ namespace RockWeb.Blocks.CheckIn
                 Dictionary<string, string> themeParameters = new Dictionary<string, string>();
                 themeParameters.Add( "theme", LocalDeviceConfig.CurrentTheme );
 
-                NavigateToCurrentPageReference( themeParameters );
+                var urlTheme = this.PageParameter( "theme" );
+                // theme specified in the url is different than the one we want to set
+                // this will help prevent infinite redirects which could happen if an invalid theme was specified
+                if ( !urlTheme.Equals( theme, StringComparison.OrdinalIgnoreCase ) )
+                {
+                    NavigateToCurrentPageReference( themeParameters );
+                }
             }
         }
 

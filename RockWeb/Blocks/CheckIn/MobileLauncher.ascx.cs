@@ -58,6 +58,7 @@ namespace RockWeb.Blocks.CheckIn
         Category = "CustomSetting",
         IsRequired = true,
         Description = "The check-in theme to pass to the check-in pages.",
+        DefaultValue = "CheckinElectric",
         Order = 2
         )]
 
@@ -563,7 +564,11 @@ namespace RockWeb.Blocks.CheckIn
             this.CurrentCheckInState = new CheckInState( this.LocalDeviceConfig );
             SaveState();
 
-            var checkinStatus = CheckinConfigurationHelper.GetCheckinStatus( CurrentCheckInState.Kiosk, CurrentCheckInState.ConfiguredGroupTypes, CurrentCheckInState.CheckInType );
+            CheckinConfigurationHelper.CheckinStatus checkinStatus = CheckinConfigurationHelper.CheckinStatus.Closed;
+            if ( CurrentCheckInState.Kiosk != null )
+            {
+                checkinStatus = CheckinConfigurationHelper.GetCheckinStatus( CurrentCheckInState.Kiosk, CurrentCheckInState.ConfiguredGroupTypes, CurrentCheckInState.CheckInType );
+            }
 
             RefreshCheckinStatusInformation( checkinStatus );
         }
@@ -591,7 +596,12 @@ namespace RockWeb.Blocks.CheckIn
 
                 case CheckinConfigurationHelper.CheckinStatus.TemporarilyClosed:
                     {
-                        DateTime activeAt = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes ).Select( g => g.NextActiveTime ).Min();
+                        DateTime activeAt = DateTime.MaxValue;
+                        if ( CurrentCheckInState != null && CurrentCheckInState.Kiosk != null )
+                        {
+                            activeAt = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes ).Select( g => g.NextActiveTime ).Min();
+                        }
+
                         if ( activeAt == DateTime.MaxValue )
                         {
                             lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
@@ -641,11 +651,19 @@ namespace RockWeb.Blocks.CheckIn
         {
             var mobilePerson = this.GetMobilePerson();
             var mergeFields = LavaHelper.GetCommonMergeFields( this.RockPage, mobilePerson );
-            mergeFields.Add( "Kiosk", CurrentCheckInState.Kiosk );
 
             string messageLavaTemplate = this.GetAttributeValue( messageLavaTemplateAttributeKey );
-            DateTime nextActiveTime = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes ).Select( g => g.NextActiveTime ).Min();
-            mergeFields.Add( "NextActiveTime", nextActiveTime );
+            if ( CurrentCheckInState != null && CurrentCheckInState.Kiosk != null )
+            {
+                mergeFields.Add( "Kiosk", CurrentCheckInState.Kiosk );
+                DateTime nextActiveTime = DateTime.MaxValue;
+                var filteredGroupTypes = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes );
+                if ( filteredGroupTypes.Any() )
+                {
+                    nextActiveTime = filteredGroupTypes.Select( g => g.NextActiveTime ).Min();
+                }
+                mergeFields.Add( "NextActiveTime", nextActiveTime );
+            }
 
             return messageLavaTemplate.ResolveMergeFields( mergeFields );
         }

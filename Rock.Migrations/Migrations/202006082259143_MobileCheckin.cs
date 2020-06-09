@@ -19,7 +19,7 @@ namespace Rock.Migrations
     using System;
     using System.Collections.Generic;
     using System.Data.Entity.Migrations;
-    
+
     /// <summary>
     ///
     /// </summary>
@@ -41,7 +41,7 @@ namespace Rock.Migrations
         private void UpCheckinPagesSecurity()
         {
             // Clear Security on all of the Checkin pages, except for Admin, Welcome, Search and Family Select
-            Dictionary<string, string> pageGuidAuthGuidToUpdateSecurity = new Dictionary<string, string>
+            Dictionary<string, string> pageGuidAuthGuids = new Dictionary<string, string>
             {
                 {  Rock.SystemGuid.Page.CHECKIN_PERSON_SELECT, "496bf09b-94cb-416d-8567-e489e6079dad" },
                 {  Rock.SystemGuid.Page.CHECKIN_GROUP_TYPE_SELECT, "115443d8-02d0-4e97-b38b-82fe6d55d4af" },
@@ -59,7 +59,7 @@ namespace Rock.Migrations
                 {  Rock.SystemGuid.Page.CHECKIN_CHECK_OUT_SUCCESS, "752427b9-822b-428b-a182-6a4f8271323f" },
             };
 
-            foreach ( var pageGuidAuthGuid in pageGuidAuthGuidToUpdateSecurity )
+            foreach ( var pageGuidAuthGuid in pageGuidAuthGuids )
             {
                 RockMigrationHelper.DeleteSecurityAuthForPage( pageGuidAuthGuid.Key );
                 RockMigrationHelper.AddSecurityAuthForPage( pageGuidAuthGuid.Key, 0, "VIEW", true, null, ( int ) Rock.Model.SpecialRole.AllUsers, pageGuidAuthGuid.Value );

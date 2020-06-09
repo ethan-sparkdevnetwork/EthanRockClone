@@ -63,9 +63,10 @@ namespace RockWeb.Blocks.CheckIn
 
     [TextField(
         "Check-in Configuration",
-        Key = AttributeKey.CheckinConfiguration_GroupTypeId,
+        Key = AttributeKey.CheckinConfiguration_GroupTypeGuid,
         Category = "CustomSetting",
         IsRequired = true,
+        DefaultValue = Rock.SystemGuid.GroupType.GROUPTYPE_WEEKLY_SERVICE_CHECKIN_AREA,
         Description = "The check-in configuration to use." )]
 
     [TextField(
@@ -204,7 +205,7 @@ namespace RockWeb.Blocks.CheckIn
             /// <summary>
             /// The checkin configuration unique identifier (which is a GroupType)
             /// </summary>
-            public const string CheckinConfiguration_GroupTypeId = "CheckinConfiguration_GroupTypeId";
+            public const string CheckinConfiguration_GroupTypeGuid = "CheckinConfiguration_GroupTypeGuid";
 
             /// <summary>
             /// The configured Checkin Areas (which are really Group Types)
@@ -368,7 +369,7 @@ namespace RockWeb.Blocks.CheckIn
                 return;
             }
 
-            var selectedCheckinType = GroupTypeCache.Get( this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId ).AsInteger() );
+            var selectedCheckinType = GroupTypeCache.Get( this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeGuid ).AsGuid() );
             var selectedAreaGroupTypes = this.GetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds )
                 .SplitDelimitedValues()
                 .AsIntegerList()
@@ -420,7 +421,9 @@ namespace RockWeb.Blocks.CheckIn
         /// </summary>
         private void UpdateConfigurationFromBlockSettings()
         {
-            var configuredCheckinTypeId = this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId ).AsIntegerOrNull();
+            var configuredCheckinTypeGuid = this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeGuid ).AsGuid();
+
+            var configuredCheckinTypeId = GroupTypeCache.GetId( configuredCheckinTypeGuid );
 
             LocalDeviceConfig.CurrentCheckinTypeId = configuredCheckinTypeId;
             LocalDeviceConfig.CurrentGroupTypeIds = this.GetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds ).SplitDelimitedValues().AsIntegerList();
@@ -696,9 +699,9 @@ namespace RockWeb.Blocks.CheckIn
 
             BindCheckinTypes();
 
-            var selectedCheckinType = GroupTypeCache.Get( this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId ).AsInteger() );
+            var selectedCheckinTypeGuid = this.GetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeGuid );
 
-            ddlCheckinType.SetValue( selectedCheckinType );
+            ddlCheckinType.SetValue( selectedCheckinTypeGuid );
 
             var configuredAreas_GroupTypeIds = this.GetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds ).SplitDelimitedValues().AsIntegerList();
 
@@ -776,13 +779,13 @@ namespace RockWeb.Blocks.CheckIn
                     .Select( t => new
                     {
                         t.Name,
-                        t.Id
+                        t.Guid
                     } )
                     .ToList();
 
                 ddlCheckinType.Items.Clear();
                 ddlCheckinType.Items.Add( new ListItem() );
-                ddlCheckinType.Items.AddRange( checkinTypes.Select( a => new ListItem( a.Name, a.Id.ToString() ) ).ToArray() );
+                ddlCheckinType.Items.AddRange( checkinTypes.Select( a => new ListItem( a.Name, a.Guid.ToString() ) ).ToArray() );
             }
         }
 
@@ -1013,7 +1016,7 @@ namespace RockWeb.Blocks.CheckIn
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void mdEditSettings_SaveClick( object sender, EventArgs e )
         {
-            this.SetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeId, ddlCheckinType.SelectedValue );
+            this.SetAttributeValue( AttributeKey.CheckinConfiguration_GroupTypeGuid, ddlCheckinType.SelectedValue );
             this.SetAttributeValue( AttributeKey.CheckinTheme, ddlTheme.SelectedValue );
             this.SetAttributeValue( AttributeKey.DeviceIdList, lbDevices.SelectedValues.AsDelimited( "," ) );
             this.SetAttributeValue( AttributeKey.ConfiguredAreas_GroupTypeIds, lbAreas.SelectedValues.AsDelimited( "," ) );

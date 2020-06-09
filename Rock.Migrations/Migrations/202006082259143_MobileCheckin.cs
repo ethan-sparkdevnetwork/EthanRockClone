@@ -103,7 +103,7 @@ namespace Rock.Migrations
             RockMigrationHelper.AddOrUpdateBlockTypeAttribute( "FA4D15E6-4C85-4247-A374-5E592E711CFD", "9C204CD0-1233-41C5-818A-C5DA439445AA", "Check-in Theme", "CheckinTheme", "Check-in Theme", @"The check-in theme to pass to the check-in pages.", 2, @"", "FE66ED5B-9E18-4BB1-A7C2-743A85C106E0" );
 
             // Attribute for BlockType: Mobile Check-in Launcher:Check-in Configuration
-            RockMigrationHelper.AddOrUpdateBlockTypeAttribute( "FA4D15E6-4C85-4247-A374-5E592E711CFD", "9C204CD0-1233-41C5-818A-C5DA439445AA", "Check-in Configuration", "CheckinConfiguration_GroupTypeId", "Check-in Configuration", @"The check-in configuration to use.", 0, @"", "145BC47F-D6B6-4FE0-9B13-8082BE6FE2CE" );
+            RockMigrationHelper.AddOrUpdateBlockTypeAttribute( "FA4D15E6-4C85-4247-A374-5E592E711CFD", "9C204CD0-1233-41C5-818A-C5DA439445AA", "Check-in Configuration", "CheckinConfiguration_GroupTypeGuid", "Check-in Configuration", @"The check-in configuration to use.", 0, @"", "145BC47F-D6B6-4FE0-9B13-8082BE6FE2CE" );
 
             // Attribute for BlockType: Mobile Check-in Launcher:Check-in Areas
             RockMigrationHelper.AddOrUpdateBlockTypeAttribute( "FA4D15E6-4C85-4247-A374-5E592E711CFD", "9C204CD0-1233-41C5-818A-C5DA439445AA", "Check-in Areas", "ConfiguredAreas_GroupTypeIds", "Check-in Areas", @"The check-in areas to use.", 0, @"", "78BD9BE9-77FA-4FFE-B1D7-3D4A2CB07C8C" );

@@ -7,13 +7,13 @@ namespace Rock.Migrations
     using System.Resources;
     
     [GeneratedCode("EntityFramework.Migrations", "6.1.3-40302")]
-    public sealed partial class MobileCheckin : IMigrationMetadata
+    public sealed partial class ImprovePerformanceOfFamilyAnalyticsEraDataset : IMigrationMetadata
     {
         private readonly ResourceManager Resources = new ResourceManager(typeof(BinaryFileTypeCachingChanges));
         
         string IMigrationMetadata.Id
         {
-            get { return "202006082259143_MobileCheckin"; }
+            get { return "202006081726186_ImprovePerformanceOfFamilyAnalyticsEraDataset"; }
         }
         
         string IMigrationMetadata.Source

@@ -335,13 +335,8 @@ namespace RockWeb.Blocks.CheckIn
                     if ( parts[0] == "GeoLocationCallback" )
                     {
                         string geoResult = parts[1];
-                        string message = string.Empty;
-                        if ( parts.Length == 3 )
-                        {
-                            message = parts[2];
-                        }
 
-                        ProcessGeolocationCallback( geoResult, message );
+                        ProcessGeolocationCallback( geoResult );
                     }
                 }
             }
@@ -526,14 +521,13 @@ namespace RockWeb.Blocks.CheckIn
         /// Gets the device from the GeoLocation callback result;
         /// </summary>
         /// <param name="callbackResult">The callback result.</param>
-        /// <param name="errorMessage">The error message.</param>
-        private void ProcessGeolocationCallback( string callbackResult, string errorMessage )
+        private void ProcessGeolocationCallback( string callbackResult )
         {
             hfGetGeoLocation.Value = false.ToJavaScriptValue();
 
             var latitude = hfLatitude.Value.AsDoubleOrNull();
             var longitude = hfLongitude.Value.AsDoubleOrNull();
-            Device device = null;
+            Device device;
 
             if ( callbackResult == "Success" && latitude.HasValue && longitude.HasValue )
             {

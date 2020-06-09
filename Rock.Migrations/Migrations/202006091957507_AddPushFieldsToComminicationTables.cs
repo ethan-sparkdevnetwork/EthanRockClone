@@ -20,7 +20,7 @@ namespace Rock.Migrations
     using System.Data.Entity.Migrations;
     
     /// <summary>
-    ///
+    /// Adds the push fields to the communication tables.
     /// </summary>
     public partial class AddPushFieldsToComminicationTables : Rock.Migrations.RockMigration
     {
@@ -33,12 +33,12 @@ namespace Rock.Migrations
             AddColumn("dbo.SystemCommunication", "PushOpenAction", c => c.Int());
             AddColumn("dbo.SystemCommunication", "PushOpenMessage", c => c.String());
             AddColumn("dbo.SystemCommunication", "PushData", c => c.String());
-           
+
             AddColumn("dbo.Communication", "PushImageFileId", c => c.Int());
             AddColumn("dbo.Communication", "PushOpenAction", c => c.Int());
             AddColumn("dbo.Communication", "PushOpenMessage", c => c.String());
             AddColumn("dbo.Communication", "PushData", c => c.String());
-           
+
             AddColumn("dbo.CommunicationTemplate", "PushImageFileId", c => c.Int());
             AddColumn("dbo.CommunicationTemplate", "PushOpenAction", c => c.Int());
             AddColumn("dbo.CommunicationTemplate", "PushOpenMessage", c => c.String());
@@ -54,12 +54,12 @@ namespace Rock.Migrations
             DropColumn("dbo.CommunicationTemplate", "PushOpenMessage");
             DropColumn("dbo.CommunicationTemplate", "PushOpenAction");
             DropColumn("dbo.CommunicationTemplate", "PushImageFileId");
-            
+
             DropColumn("dbo.Communication", "PushData");
             DropColumn("dbo.Communication", "PushOpenMessage");
             DropColumn("dbo.Communication", "PushOpenAction");
             DropColumn("dbo.Communication", "PushImageFileId");
-            
+
             DropColumn("dbo.SystemCommunication", "PushData");
             DropColumn("dbo.SystemCommunication", "PushOpenMessage");
             DropColumn("dbo.SystemCommunication", "PushOpenAction");

@@ -13,7 +13,7 @@ namespace Rock.Migrations
         
         string IMigrationMetadata.Id
         {
-            get { return "202006091608486_AddPushFieldsToComminicationTables"; }
+            get { return "202006091957507_AddPushFieldsToComminicationTables"; }
         }
         
         string IMigrationMetadata.Source

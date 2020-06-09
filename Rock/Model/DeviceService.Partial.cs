@@ -37,7 +37,7 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Finds the closest matching device for the given lat/long coordinates. The given coordinates
+        /// Finds the first matching device for the given lat/long coordinates. The given coordinates
         /// must intersect one of the stored GeoFence values to be a match.  Use the deviceTypeValueId
         /// to constrain matching to only certain device types.
         /// </summary>
@@ -47,28 +47,43 @@ namespace Rock.Model
         /// <returns>a single matching Device kiosk or null if nothing was matched</returns>
         public Device GetByGeocode( double latitude, double longitude, int deviceTypeValueId )
         {
-            return GetDevicesByGeocode( latitude, longitude, deviceTypeValueId ).FirstOrDefault();
+            /* 2020-06-08 MDP
+              If more than one device is found, we'll have to pick one somehow
+              since there doesn't seem to be a way to determine which geofence to choose
+              if the geofences are overlapping at the specific latitude/longitude.
+
+              So if there this problem due to overlapping geofences, that would be a configuration issue.
+
+              We'll just deal with it by choosing the one with the lowest Id.
+           */
+
+            var deviceQueryable = GetDevicesByGeocode( latitude, longitude, deviceTypeValueId );
+
+            return deviceQueryable.OrderBy( a => a.Id ).FirstOrDefault();
         }
 
         /// <summary>
-        /// Returns a queryable of matching device for the given lat/long coordinates, ordered by <seealso cref="DbGeography.Distance">distance</seealso>.
+        /// Returns a queryable of matching devices for the given lat/long coordinate
         /// The given coordinates must intersect one of the stored GeoFence values to be a match.
         /// Use the deviceTypeValueId to constrain matching to only certain device types.
+        /// NOTE: If more than one device is found, the caller will have to pick which one they want
+        /// since there doesn't seem to be a way to determine which geofence to choose
+        /// if the geofences are overlapping at the specific latitude/longitude
         /// </summary>
         /// <param name="latitude">Latitude of the mobile phone/kiosk.</param>
         /// <param name="longitude">Longitude of the mobile phone/kiosk.</param>
         /// <param name="deviceTypeValueId">Longitude of the mobile phone/kiosk.</param>
         /// <returns>a single matching Device kiosk or null if nothing was matched</returns>
-        public IOrderedQueryable<Device> GetDevicesByGeocode( double latitude, double longitude, int deviceTypeValueId )
+        public IQueryable<Device> GetDevicesByGeocode( double latitude, double longitude, int deviceTypeValueId )
         {
             DbGeography geoLocation = Location.GetGeoPoint( latitude, longitude );
 
-            IOrderedQueryable<Device> deviceQueryable = Queryable()
+            var deviceQueryable = Queryable()
                 .Where( d =>
                     d.DeviceTypeValueId == deviceTypeValueId &&
                     d.Location != null &&
-                    geoLocation.Intersects( d.Location.GeoFence ) )
-                .OrderBy( d => d.Location.GeoFence.Distance( geoLocation ) );
+                    geoLocation.Intersects( d.Location.GeoFence )
+                    );
 
             return deviceQueryable;
         }

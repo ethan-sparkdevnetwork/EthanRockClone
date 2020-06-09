@@ -77,6 +77,26 @@ namespace RockWeb.Blocks.CheckIn
 
     #endregion Block Attributes
 
+    #region Block Attributes for Launcher Navigation
+
+    [LinkedPage( "Login Page",
+        AttributeKey.LoginPage,
+        Description = "The page to use for logging in the person. If blank the login button will not be shown",
+        IsRequired = false,
+        Category = "Mobile Person",
+        Order = 100
+        )]
+
+    [LinkedPage( "Phone Identification Page",
+        AttributeKey.PhoneIdentificationPage,
+        Description = "Page to use for identifying the person by phone number. If blank the button will not be shown.",
+        IsRequired = false,
+        Category = "Mobile Person",
+        Order = 101
+        )]
+
+    #endregion Block Attributes for Launcher Navigation
+
     #region Block Attributes for Text options
 
     [CodeEditorField(
@@ -161,7 +181,7 @@ namespace RockWeb.Blocks.CheckIn
         Order = 8 )]
 
     [CodeEditorField( "No People Message",
-        AttributeKey.NoPeopleMessage,
+        Key = AttributeKey.NoPeopleMessage,
         Description = "Text to display when there is not anyone in the family that can check-in",
         IsRequired = false,
         DefaultValue = "Sorry, no one in your family is eligible to check-in at this location.",
@@ -325,6 +345,10 @@ namespace RockWeb.Blocks.CheckIn
             }
         }
 
+        #endregion Base Control Methods
+
+        #region Methods
+
         /// <summary>
         /// Shows the details.
         /// </summary>
@@ -443,8 +467,9 @@ namespace RockWeb.Blocks.CheckIn
                 themeParameters.Add( "theme", LocalDeviceConfig.CurrentTheme );
 
                 var urlTheme = this.PageParameter( "theme" );
-                // theme specified in the url is different than the one we want to set
-                // this will help prevent infinite redirects which could happen if an invalid theme was specified
+
+                // Check if theme specified in the url is different than the one we want to set.
+                // This will help prevent infinite redirects which could happen if an invalid theme was specified
                 if ( !urlTheme.Equals( theme, StringComparison.OrdinalIgnoreCase ) )
                 {
                     NavigateToCurrentPageReference( themeParameters );
@@ -486,14 +511,173 @@ namespace RockWeb.Blocks.CheckIn
         }
 
         /// <summary>
-        /// Handles the Click event of the lbEdit control.
+        /// Enables the GEO location JavaScript which will return the current lat/long then call <seealso cref="ProcessGeolocationCallback(string, string)"/>
         /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        private void lbEdit_Click( object sender, EventArgs e )
+        private void EnableGeoLocationScript()
         {
-            ShowSettings();
+            hfGetGeoLocation.Value = true.ToJavaScriptValue();
         }
+
+        /// <summary>
+        /// Gets the device from the GeoLocation callback result;
+        /// </summary>
+        /// <param name="callbackResult">The callback result.</param>
+        /// <param name="errorMessage">The error message.</param>
+        private void ProcessGeolocationCallback( string callbackResult, string errorMessage )
+        {
+            hfGetGeoLocation.Value = false.ToJavaScriptValue();
+
+            var latitude = hfLatitude.Value.AsDoubleOrNull();
+            var longitude = hfLongitude.Value.AsDoubleOrNull();
+            Device device = null;
+
+            if ( callbackResult == "Success" && latitude.HasValue && longitude.HasValue )
+            {
+                bbtnGetGeoLocation.Visible = false;
+                HttpCookie rockHasLocationApprovalCookie = new HttpCookie( CheckInCookieKey.RockHasLocationApproval, "true" );
+                rockHasLocationApprovalCookie.Expires = RockDateTime.Now.AddYears( 1 );
+                Response.Cookies.Set( rockHasLocationApprovalCookie );
+
+                device = GetFirstMatchingKioskByGeoFencing( latitude.Value, longitude.Value );
+            }
+            else
+            {
+                lMessage.Text = GetMessageText( AttributeKey.UnableToDetermineMobileLocationTemplate );
+                return;
+            }
+
+            if ( device == null )
+            {
+                lMessage.Text = GetMessageText( AttributeKey.NoDevicesFoundTemplate );
+                return;
+            }
+
+            // device found for mobile person's location
+            LocalDeviceConfig.CurrentKioskId = device.Id;
+            LocalDeviceConfig.SaveToCookie( this.Page );
+
+            // create new checkin state since we are starting a new checkin sessions
+            this.CurrentCheckInState = new CheckInState( this.LocalDeviceConfig );
+            SaveState();
+
+            var checkinStatus = CheckinConfigurationHelper.GetCheckinStatus( CurrentCheckInState.Kiosk, CurrentCheckInState.ConfiguredGroupTypes, CurrentCheckInState.CheckInType );
+
+            RefreshCheckinStatusInformation( checkinStatus );
+        }
+
+        /// <summary>
+        /// Refreshes the checkin status information.
+        /// </summary>
+        /// <param name="checkinStatus">The checkin status.</param>
+        private void RefreshCheckinStatusInformation( Rock.CheckIn.CheckinConfigurationHelper.CheckinStatus checkinStatus )
+        {
+            if ( checkinStatus != CheckinConfigurationHelper.CheckinStatus.Active )
+            {
+                bbtnTryAgain.Visible = true;
+                bbtnCheckin.Visible = false;
+                lCheckinQRCodeHtml.Visible = false;
+            }
+
+            switch ( checkinStatus )
+            {
+                case CheckinConfigurationHelper.CheckinStatus.Inactive:
+                    {
+                        lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
+                        break;
+                    }
+
+                case CheckinConfigurationHelper.CheckinStatus.TemporarilyClosed:
+                    {
+                        DateTime activeAt = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes ).Select( g => g.NextActiveTime ).Min();
+                        if ( activeAt == DateTime.MaxValue )
+                        {
+                            lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
+                        }
+                        else
+                        {
+                            lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
+                        }
+
+                        break;
+                    }
+
+                case CheckinConfigurationHelper.CheckinStatus.Closed:
+                    {
+                        lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
+                        break;
+                    }
+
+                case CheckinConfigurationHelper.CheckinStatus.Active:
+                default:
+                    {
+                        lMessage.Text = GetMessageText( AttributeKey.WelcomeBackTemplate );
+                        var qrCodeImageUrl = GetAttendanceSessionsQrCodeImageUrl();
+                        if ( qrCodeImageUrl.IsNotNullOrWhiteSpace() )
+                        {
+                            lCheckinQRCodeHtml.Text = string.Format( "<div class='center-block'><img class='img-responsive center-block' src='{0}' alt=''></div>", qrCodeImageUrl );
+                            lCheckinQRCodeHtml.Visible = true;
+                        }
+                        else
+                        {
+                            lCheckinQRCodeHtml.Visible = false;
+                        }
+
+                        bbtnCheckin.Visible = true;
+                        bbtnTryAgain.Visible = false;
+                        break;
+                    }
+            }
+        }
+
+        /// <summary>
+        /// Gets the message text.
+        /// </summary>
+        /// <param name="messageLavaTemplateAttributeKey">The message lava template attribute key.</param>
+        /// <returns></returns>
+        private string GetMessageText( string messageLavaTemplateAttributeKey )
+        {
+            var mobilePerson = this.GetMobilePerson();
+            var mergeFields = LavaHelper.GetCommonMergeFields( this.RockPage, mobilePerson );
+            mergeFields.Add( "Kiosk", CurrentCheckInState.Kiosk );
+
+            string messageLavaTemplate = this.GetAttributeValue( messageLavaTemplateAttributeKey );
+            DateTime nextActiveTime = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes ).Select( g => g.NextActiveTime ).Min();
+            mergeFields.Add( "NextActiveTime", nextActiveTime );
+
+            return messageLavaTemplate.ResolveMergeFields( mergeFields );
+        }
+
+        /// <summary>
+        /// Returns a kiosk based on finding a GEO location match for the given latitude and longitude.
+        /// </summary>
+        /// <param name="latitude">The latitude.</param>
+        /// <param name="longitude">The longitude.</param>
+        /// <returns></returns>
+        public Device GetFirstMatchingKioskByGeoFencing( double latitude, double longitude )
+        {
+            var deviceTypeCheckinKioskValueId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.DEVICE_TYPE_CHECKIN_KIOSK ).Id;
+
+            using ( var rockContext = new RockContext() )
+            {
+                IQueryable<Device> kioskQuery = new DeviceService( rockContext )
+                    .GetDevicesByGeocode( latitude, longitude, deviceTypeCheckinKioskValueId )
+                    .Where( a => a.IsActive == true );
+                List<int> allowedDeviceIds = this.GetAttributeValue( AttributeKey.DeviceIdList ).SplitDelimitedValues().AsIntegerList();
+                if ( allowedDeviceIds.Any() )
+                {
+                    kioskQuery = kioskQuery.Where( a => allowedDeviceIds.Contains( a.Id ) );
+                }
+
+                var mobileGeoPoint = Location.GetGeoPoint( latitude, longitude );
+                var distances = kioskQuery.Select( a => a.Location.GeoPoint.Distance( mobileGeoPoint ) ).ToList();
+
+                return kioskQuery.OrderBy( a => a.Id ).FirstOrDefault();
+            }
+        }
+
+        #endregion Methods
+
+        #region Edit Settings Methods
 
         /// <summary>
         /// Shows the settings.
@@ -639,7 +823,7 @@ namespace RockWeb.Blocks.CheckIn
             lbDevices.Items.AddRange( devices.Select( a => new ListItem( a.Name, a.Id.ToString() ) ).ToArray() );
         }
 
-        #endregion
+        #endregion Edit Settings Methods
 
         #region Events
 
@@ -678,7 +862,7 @@ namespace RockWeb.Blocks.CheckIn
                 return;
             }
 
-            var device = GetClosestKioskByGeoFencing( latitude.Value, longitude.Value );
+            var device = GetFirstMatchingKioskByGeoFencing( latitude.Value, longitude.Value );
 
             if ( device == null )
             {
@@ -760,12 +944,6 @@ namespace RockWeb.Blocks.CheckIn
             ProcessSelection( maWarning, doNotProceedCondition, noMatchingPeopleMessage );
         }
 
-        #endregion
-
-        #region Methods
-
-        #endregion
-
         /// <summary>
         /// Handles the Click event of the bbtnLogin control.
         /// </summary>
@@ -773,10 +951,59 @@ namespace RockWeb.Blocks.CheckIn
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void bbtnLogin_Click( object sender, EventArgs e )
         {
+            var context = HttpContext.Current;
             var queryParams = new Dictionary<string, string>();
-            queryParams.Add( "ReturnUrl", Request.RawUrl );
+            queryParams.Add( "returnUrl", context.Server.UrlEncode( PersonToken.RemoveRockMagicToken( context.Request.RawUrl ) ) );
 
-            NavigateToLinkedPage( "core_LoginPage", queryParams );
+            NavigateToLinkedPage( AttributeKey.LoginPage, queryParams );
+        }
+
+        /// <summary>
+        /// Handles the Click event of the bbtnPhoneLookup control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void bbtnPhoneLookup_Click( object sender, EventArgs e )
+        {
+            var context = HttpContext.Current;
+            var queryParams = new Dictionary<string, string>();
+            queryParams.Add( "returnUrl", context.Server.UrlEncode( PersonToken.RemoveRockMagicToken( context.Request.RawUrl ) ) );
+
+            NavigateToLinkedPage( AttributeKey.PhoneIdentificationPage, queryParams );
+        }
+
+        /// <summary>
+        /// Handles the Click event of the bbtnGetGeoLocation control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void bbtnGetGeoLocation_Click( object sender, EventArgs e )
+        {
+            EnableGeoLocationScript();
+        }
+
+        /// <summary>
+        /// Handles the Click event of the bbtnTryAgain control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void bbtnTryAgain_Click( object sender, EventArgs e )
+        {
+            NavigateToCurrentPageReference();
+        }
+
+        #endregion Events
+
+        #region Edit Settings Events
+
+        /// <summary>
+        /// Handles the Click event of the lbEdit control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        private void lbEdit_Click( object sender, EventArgs e )
+        {
+            ShowSettings();
         }
 
         /// <summary>
@@ -817,195 +1044,6 @@ namespace RockWeb.Blocks.CheckIn
             BindAreas( selectedDeviceIds );
         }
 
-        /// <summary>
-        /// Handles the Click event of the bbtnPhoneLookup control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void bbtnPhoneLookup_Click( object sender, EventArgs e )
-        {
-            NavigateToLinkedPage( AttributeKey.PhoneIdentificationPage );
-        }
-
-        /// <summary>
-        /// Handles the Click event of the bbtnGetGeoLocation control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void bbtnGetGeoLocation_Click( object sender, EventArgs e )
-        {
-            EnableGeoLocationScript();
-        }
-
-        /// <summary>
-        /// Enables the GEO location JavaScript which will return the current lat/long then call <seealso cref="ProcessGeolocationCallback(string, string)"/>
-        /// </summary>
-        private void EnableGeoLocationScript()
-        {
-            hfGetGeoLocation.Value = true.ToJavaScriptValue();
-        }
-
-        /// <summary>
-        /// Gets the device from the GeoLocation callback result;
-        /// </summary>
-        /// <param name="callbackResult">The callback result.</param>
-        /// <param name="errorMessage">The error message.</param>
-        private void ProcessGeolocationCallback( string callbackResult, string errorMessage )
-        {
-            hfGetGeoLocation.Value = false.ToJavaScriptValue();
-
-            var latitude = hfLatitude.Value.AsDoubleOrNull();
-            var longitude = hfLongitude.Value.AsDoubleOrNull();
-            Device device = null;
-
-            if ( callbackResult == "Success" && latitude.HasValue && longitude.HasValue )
-            {
-                bbtnGetGeoLocation.Visible = false;
-                HttpCookie rockHasLocationApprovalCookie = new HttpCookie( CheckInCookieKey.RockHasLocationApproval, "true" );
-                Response.Cookies.Set( rockHasLocationApprovalCookie );
-
-                device = GetClosestKioskByGeoFencing( latitude.Value, longitude.Value );
-            }
-            else
-            {
-                lMessage.Text = GetMessageText( AttributeKey.UnableToDetermineMobileLocationTemplate );
-                return;
-            }
-
-            if ( device == null )
-            {
-                lMessage.Text = GetMessageText( AttributeKey.NoDevicesFoundTemplate );
-                return;
-            }
-
-            // device found for mobile person's location
-            LocalDeviceConfig.CurrentKioskId = device.Id;
-            LocalDeviceConfig.SaveToCookie( this.Page );
-
-            // create new checkin state since we are starting a new checkin sessions
-            this.CurrentCheckInState = new CheckInState( this.LocalDeviceConfig );
-            SaveState();
-
-            var checkinStatus = CheckinConfigurationHelper.GetCheckinStatus( CurrentCheckInState.Kiosk, CurrentCheckInState.ConfiguredGroupTypes, CurrentCheckInState.CheckInType );
-
-            RefreshCheckinStatusInformation( checkinStatus );
-        }
-
-        /// <summary>
-        /// Refreshes the checkin status information.
-        /// </summary>
-        /// <param name="checkinStatus">The checkin status.</param>
-        private void RefreshCheckinStatusInformation( Rock.CheckIn.CheckinConfigurationHelper.CheckinStatus checkinStatus )
-        {
-            if ( checkinStatus != CheckinConfigurationHelper.CheckinStatus.Active )
-            {
-                bbtnTryAgain.Visible = true;
-                bbtnCheckin.Visible = false;
-                lCheckinQRCodeHtml.Visible = false;
-            }
-
-            switch ( checkinStatus )
-            {
-                case CheckinConfigurationHelper.CheckinStatus.Inactive:
-                    {
-                        lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
-                        break;
-                    }
-
-                case CheckinConfigurationHelper.CheckinStatus.TemporarilyClosed:
-                    {
-                        DateTime activeAt = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes ).Select( g => g.NextActiveTime ).Min();
-                        if ( activeAt == DateTime.MaxValue )
-                        {
-                            lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
-                        }
-                        else
-                        {
-                            lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
-                        }
-
-                        break;
-                    }
-
-                case CheckinConfigurationHelper.CheckinStatus.Closed:
-                    {
-                        lMessage.Text = GetMessageText( AttributeKey.NoScheduledDevicesAvailableTemplate );
-                        break;
-                    }
-
-                case CheckinConfigurationHelper.CheckinStatus.Active:
-                default:
-                    {
-                        lMessage.Text = GetMessageText( AttributeKey.WelcomeBackTemplate );
-                        var qrCodeImageUrl = GetAttendanceSessionsQrCodeImageUrl();
-                        if ( qrCodeImageUrl.IsNotNullOrWhiteSpace() )
-                        {
-                            lCheckinQRCodeHtml.Text = string.Format( "<div class='center-block'><img class='img-responsive center-block' src='{0}' alt=''></div>", qrCodeImageUrl );
-                            lCheckinQRCodeHtml.Visible = true;
-                        }
-                        else
-                        {
-                            lCheckinQRCodeHtml.Visible = false;
-                        }
-
-                        bbtnCheckin.Visible = true;
-                        bbtnTryAgain.Visible = false;
-                        break;
-                    }
-            }
-        }
-
-        /// <summary>
-        /// Gets the message text.
-        /// </summary>
-        /// <param name="messageLavaTemplateAttributeKey">The message lava template attribute key.</param>
-        /// <returns></returns>
-        private string GetMessageText( string messageLavaTemplateAttributeKey )
-        {
-            var mobilePerson = this.GetMobilePerson();
-            var mergeFields = LavaHelper.GetCommonMergeFields( this.RockPage, mobilePerson );
-            mergeFields.Add( "Kiosk", CurrentCheckInState.Kiosk );
-
-            string messageLavaTemplate = this.GetAttributeValue( messageLavaTemplateAttributeKey );
-            DateTime nextActiveTime = CurrentCheckInState.Kiosk.FilteredGroupTypes( CurrentCheckInState.ConfiguredGroupTypes ).Select( g => g.NextActiveTime ).Min();
-            mergeFields.Add( "NextActiveTime", nextActiveTime );
-
-            return messageLavaTemplate.ResolveMergeFields( mergeFields );
-        }
-
-        /// <summary>
-        /// Returns a kiosk based on finding a GEO location match for the given latitude and longitude.
-        /// </summary>
-        /// <param name="latitude">The latitude.</param>
-        /// <param name="longitude">The longitude.</param>
-        /// <returns></returns>
-        public Device GetClosestKioskByGeoFencing( double latitude, double longitude )
-        {
-            var deviceTypeCheckinKioskValueId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.DEVICE_TYPE_CHECKIN_KIOSK ).Id;
-
-            using ( var rockContext = new RockContext() )
-            {
-                IQueryable<Device> kioskQuery = new DeviceService( rockContext ).GetDevicesByGeocode( latitude, longitude, deviceTypeCheckinKioskValueId );
-                List<int> allowedDeviceIds = this.GetAttributeValue( AttributeKey.DeviceIdList ).SplitDelimitedValues().AsIntegerList();
-                if ( allowedDeviceIds.Any() )
-                {
-                    kioskQuery = kioskQuery.Where( a => allowedDeviceIds.Contains( a.Id ) );
-                }
-
-                var mobileGeoPoint = Location.GetGeoPoint( latitude, longitude );
-
-                return kioskQuery.OrderBy( a => a.Location.GeoPoint.Distance( mobileGeoPoint ) ).FirstOrDefault();
-            }
-        }
-
-        /// <summary>
-        /// Handles the Click event of the bbtnTryAgain control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void bbtnTryAgain_Click( object sender, EventArgs e )
-        {
-            NavigateToCurrentPageReference();
-        }
+        #endregion Edit Settings Events
     }
 }

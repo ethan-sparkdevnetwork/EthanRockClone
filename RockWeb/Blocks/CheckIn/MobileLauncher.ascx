@@ -17,11 +17,6 @@
                             <Rock:RockDropDownList ID="ddlCheckinType" runat="server" Label="Check-in Configuration" OnSelectedIndexChanged="ddlCheckinType_SelectedIndexChanged" AutoPostBack="true" />
 
                             <Rock:RockListBox ID="lbAreas" runat="server" Label="Check-in Areas" Help="The check-in areas that will be used for the checkin process" />
-
-                            <Rock:PagePicker ID="ppPhoneIdentificationPage" runat="server" Label="Phone Identication Page" Help="Page to use for identifying the person by phone number. If blank the button will not be shown." />
-                            <Rock:PagePicker ID="ppLoginPage" runat="server" Label="Login Page" Help="The page to use for logging in the person. If blank the login buton will not be shown" />
-
-
                         </ContentTemplate>
                     </asp:UpdatePanel>
                 </Content>

@@ -16,12 +16,14 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 
 using Rock.Communication;
 using Rock.Model;
 using Rock.Utility;
+using Rock.Web.Cache;
 
 namespace Rock.Web.UI.Controls.Communication
 {
@@ -40,6 +42,10 @@ namespace Rock.Web.UI.Controls.Communication
 
         private ImageUploader iupPushImage;
         private RockRadioButtonList rbOpenAction;
+        private HtmlEditor htmlAdditionalDetails;
+        private RockDropDownList ddlMobileApplications;
+        private KeyValueList kvlQuerystring;
+        private PagePicker ppMobilePage;
 
         #endregion
 
@@ -143,7 +149,7 @@ namespace Rock.Web.UI.Controls.Communication
 
             };
 
-            iupPushImage.ImageUploaded += fupPushImage_ImageUploaded;
+            iupPushImage.ImageUploaded += iupPushImage_ImageUploaded;
 
             rcwMessage.Controls.Add( iupPushImage );
 
@@ -185,10 +191,54 @@ namespace Rock.Web.UI.Controls.Communication
 
             }
 
+            rbOpenAction.SelectedValue = PushOpenAction.NoAction.ConvertToInt().ToString();
             rcwMessage.Controls.Add( rbOpenAction );
+
+            var mobileSites = new SiteService( new Data.RockContext() ).Queryable().Where( s => s.SiteType == SiteType.Mobile ).Select( s => new { s.Id, s.Name } ).ToList();
+
+            ddlMobileApplications = new RockDropDownList
+            {
+                ID = $"{nameof( ddlMobileApplications )}_{ID}",
+                Label = "Application",
+            };
+
+            ddlMobileApplications.Items.Add( new ListItem() );
+
+            for(int i = 0; i < mobileSites.Count; i++ )
+            {
+                var site = mobileSites[i];
+                ddlMobileApplications.Items.Add( new ListItem( site.Name, site.Id.ToString() ) );
+            }
+            
+            rcwMessage.Controls.Add( ddlMobileApplications );
+
+            htmlAdditionalDetails = new HtmlEditor
+            {
+                ID = $"{nameof( htmlAdditionalDetails )}_{ID}",
+                Label = "Additional Details",
+                Height = 600
+            };
+
+            rcwMessage.Controls.Add( htmlAdditionalDetails );
+
+            ppMobilePage = new PagePicker
+            {
+                ID = $"{nameof( ppMobilePage )}_{ID}",
+                Label = "Mobile Page"
+            };
+
+            rcwMessage.Controls.Add( ppMobilePage );
+
+            kvlQuerystring = new KeyValueList
+            {
+                ID = $"{nameof( kvlQuerystring )}_{ID}",
+                Label = "Mobile Page Query String",
+            };
+
+            rcwMessage.Controls.Add( kvlQuerystring );
         }
 
-        private void fupPushImage_ImageUploaded( object sender, ImageUploaderEventArgs e )
+        private void iupPushImage_ImageUploaded( object sender, ImageUploaderEventArgs e )
         {
             throw new NotImplementedException();
         }
@@ -231,6 +281,8 @@ namespace Rock.Web.UI.Controls.Communication
         /// <param name="writer">The <see cref="T:System.Web.UI.HtmlTextWriter" /> object that receives the control content.</param>
         public override void RenderControl( HtmlTextWriter writer )
         {
+            // Setting this here because the control clears out this in the OnInit function.
+            ppMobilePage.SiteType = SiteType.Mobile;
 
             writer.AddAttribute( HtmlTextWriterAttribute.Class, "row" );
             writer.RenderBeginTag( HtmlTextWriterTag.Div );

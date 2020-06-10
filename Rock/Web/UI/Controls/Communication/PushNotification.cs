@@ -15,11 +15,13 @@
 // </copyright>
 //
 using System;
+using System.Collections.Generic;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 
 using Rock.Communication;
 using Rock.Model;
+using Rock.Utility;
 
 namespace Rock.Web.UI.Controls.Communication
 {
@@ -36,9 +38,20 @@ namespace Rock.Web.UI.Controls.Communication
         private RockTextBox tbTitle;
         private RockCheckBox cbSound;
 
+        private ImageUploader iupPushImage;
+        private RockRadioButtonList rbOpenAction;
+
         #endregion
 
         #region Properties
+
+        /// <summary>
+        /// Gets or sets the transport.
+        /// </summary>
+        /// <value>
+        /// The transport.
+        /// </value>
+        public TransportComponent Transport { get; set; }
 
         /// <summary>
         /// Sets control values from a communication record.
@@ -76,41 +89,108 @@ namespace Rock.Web.UI.Controls.Communication
             base.CreateChildControls();
             Controls.Clear();
 
-            tbTitle = new RockTextBox();
-            tbTitle.ID = string.Format("tbTextTitle_{0}", this.ID);
-            tbTitle.TextMode = TextBoxMode.SingleLine;
-            tbTitle.Required = false;
-            tbTitle.Label = "Title";
-            tbTitle.MaxLength = 100;
-            Controls.Add(tbTitle);
+            tbTitle = new RockTextBox
+            {
+                ID = string.Format( "tbTextTitle_{0}", this.ID ),
+                TextMode = TextBoxMode.SingleLine,
+                Required = false,
+                Label = "Title",
+                MaxLength = 100
+            };
+            Controls.Add( tbTitle );
 
 
-            cbSound = new RockCheckBox();
-            cbSound.ID = string.Format("cbSound_{0}", this.ID);
-            cbSound.Label = "Should make sound?";
-            Controls.Add(cbSound);
-            
-            rcwMessage = new RockControlWrapper();
-            rcwMessage.ID = string.Format( "rcwMessage_{0}", this.ID );
-            rcwMessage.Label = "Message";
-            rcwMessage.Help = "<span class='tip tip-lava'></span>";
+            cbSound = new RockCheckBox
+            {
+                ID = string.Format( "cbSound_{0}", this.ID ),
+                Label = "Should make sound?"
+            };
+            Controls.Add( cbSound );
+
+            rcwMessage = new RockControlWrapper
+            {
+                ID = string.Format( "rcwMessage_{0}", this.ID ),
+                Label = "Message",
+                Help = "<span class='tip tip-lava'></span>"
+            };
             Controls.Add( rcwMessage );
 
-            mfpMessage = new MergeFieldPicker();
-            mfpMessage.ID = string.Format( "mfpMergeFields_{0}", this.ID );
+            mfpMessage = new MergeFieldPicker
+            {
+                ID = string.Format( "mfpMergeFields_{0}", this.ID )
+            };
             mfpMessage.MergeFields.Clear();
             mfpMessage.MergeFields.Add( "GlobalAttribute" );
             mfpMessage.MergeFields.Add( "Rock.Model.Person" );
-            mfpMessage.CssClass += " pull-right margin-b-sm"; 
+            mfpMessage.CssClass += " pull-right margin-b-sm";
             mfpMessage.SelectItem += mfpMergeFields_SelectItem;
             rcwMessage.Controls.Add( mfpMessage );
 
-            tbMessage = new RockTextBox();
-            tbMessage.ID = string.Format( "tbTextMessage_{0}", this.ID );
-            tbMessage.TextMode = TextBoxMode.MultiLine;
-            tbMessage.Rows = 3;
-            tbMessage.Required = true;
+            tbMessage = new RockTextBox
+            {
+                ID = string.Format( "tbTextMessage_{0}", this.ID ),
+                TextMode = TextBoxMode.MultiLine,
+                Rows = 3,
+                Required = true
+            };
             rcwMessage.Controls.Add( tbMessage );
+
+            iupPushImage = new ImageUploader
+            {
+                ID = $"{nameof( iupPushImage )}_{ID}",
+                Label = "Image",
+                Help = "We recommend an image size of 1038x520."
+
+            };
+
+            iupPushImage.ImageUploaded += fupPushImage_ImageUploaded;
+
+            rcwMessage.Controls.Add( iupPushImage );
+
+            rbOpenAction = new RockRadioButtonList
+            {
+                ID = $"{nameof( rbOpenAction )}_{ID}",
+                Label = "Open Action",
+                RepeatDirection = RepeatDirection.Horizontal,
+                Help = "Defines the open action for the message."
+            };
+
+            rbOpenAction.Items.AddRange( new ListItem[] {
+                new ListItem
+                {
+                    Text = "No Action",
+                    Value = PushOpenAction.NoAction.ConvertToInt().ToString()
+                },
+                new ListItem
+                {
+                    Text = "Show Details",
+                    Value = PushOpenAction.ShowDetails.ConvertToInt().ToString()
+                }
+            } );
+
+            if ( Transport is IRockMobilePush )
+            {
+                rbOpenAction.Items.AddRange( new ListItem[] {
+                    new ListItem
+                    {
+                        Text = "Link to Mobile Page",
+                        Value = PushOpenAction.LinkToMobilePage.ConvertToInt().ToString()
+                    },
+                    new ListItem
+                    {
+                        Text = "Link to URL",
+                        Value = PushOpenAction.LinkToUrl.ConvertToInt().ToString()
+                    }
+                } );
+
+            }
+
+            rcwMessage.Controls.Add( rbOpenAction );
+        }
+
+        private void fupPushImage_ImageUploaded( object sender, ImageUploaderEventArgs e )
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -144,7 +224,7 @@ namespace Rock.Web.UI.Controls.Communication
         public override void InitializeFromSender( Person sender )
         {
         }
-        
+
         /// <summary>
         /// Outputs server control content to a provided <see cref="T:System.Web.UI.HtmlTextWriter" /> object and stores tracing information about the control if tracing is enabled.
         /// </summary>

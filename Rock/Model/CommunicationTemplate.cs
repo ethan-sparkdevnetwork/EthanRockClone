@@ -304,7 +304,7 @@ namespace Rock.Model
         /// The push image file identifier.
         /// </value>
         [DataMember]
-        public int? PushImageFileId { get; set; }
+        public int? PushImageBinaryFileId { get; set; }
 
         /// <summary>
         /// Gets or sets the push open action.

@@ -293,9 +293,13 @@
     <Compile Include="Migrations\202006091841047_Rollup_0609.Designer.cs">
       <DependentUpon>202006091841047_Rollup_0609.cs</DependentUpon>
     </Compile>
-    <Compile Include="Migrations\202006091957507_AddPushFieldsToComminicationTables.cs" />
-    <Compile Include="Migrations\202006091957507_AddPushFieldsToComminicationTables.Designer.cs">
-      <DependentUpon>202006091957507_AddPushFieldsToComminicationTables.cs</DependentUpon>
+    <Compile Include="Migrations\202006091942209_MobileCheckin.cs" />
+    <Compile Include="Migrations\202006091942209_MobileCheckin.Designer.cs">
+      <DependentUpon>202006091942209_MobileCheckin.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Migrations\202006101237397_AddPushFieldsToComminicationTables.cs" />
+    <Compile Include="Migrations\202006101237397_AddPushFieldsToComminicationTables.Designer.cs">
+      <DependentUpon>202006101237397_AddPushFieldsToComminicationTables.cs</DependentUpon>
     </Compile>
     <Compile Include="Migrations\Version 10.0\Version 1.10.2\202002042011136_Rollup_0220.cs" />
     <Compile Include="Migrations\Version 10.0\Version 1.10.2\202002042011136_Rollup_0220.Designer.cs">
@@ -1453,8 +1457,11 @@
     <EmbeddedResource Include="Migrations\202006091841047_Rollup_0609.resx">
       <DependentUpon>202006091841047_Rollup_0609.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Migrations\202006091957507_AddPushFieldsToComminicationTables.resx">
-      <DependentUpon>202006091957507_AddPushFieldsToComminicationTables.cs</DependentUpon>
+    <EmbeddedResource Include="Migrations\202006091942209_MobileCheckin.resx">
+      <DependentUpon>202006091942209_MobileCheckin.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Migrations\202006101237397_AddPushFieldsToComminicationTables.resx">
+      <DependentUpon>202006101237397_AddPushFieldsToComminicationTables.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Migrations\Version 10.0\Version 1.10.2\202002042011136_Rollup_0220.resx">
       <DependentUpon>202002042011136_Rollup_0220.cs</DependentUpon>

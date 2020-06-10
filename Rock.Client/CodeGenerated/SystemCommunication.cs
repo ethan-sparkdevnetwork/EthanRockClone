@@ -79,7 +79,7 @@ namespace Rock.Client
         public string PushData { get; set; }
 
         /// <summary />
-        public int? PushImageFileId { get; set; }
+        public int? PushImageBinaryFileId { get; set; }
 
         /// <summary />
         public string PushMessage { get; set; }
@@ -158,7 +158,7 @@ namespace Rock.Client
             this.LavaFieldsJson = source.LavaFieldsJson;
             this.ModifiedAuditValuesAlreadyUpdated = source.ModifiedAuditValuesAlreadyUpdated;
             this.PushData = source.PushData;
-            this.PushImageFileId = source.PushImageFileId;
+            this.PushImageBinaryFileId = source.PushImageBinaryFileId;
             this.PushMessage = source.PushMessage;
             this.PushOpenAction = source.PushOpenAction;
             this.PushOpenMessage = source.PushOpenMessage;

@@ -27,6 +27,7 @@ using Rock.Model;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
+using Rock.Web.UI.Controls.Communication;
 
 namespace RockWeb.Blocks.Communication
 {
@@ -51,6 +52,37 @@ namespace RockWeb.Blocks.Communication
         #endregion Page Parameter Keys
 
         #region Control Methods
+
+        protected override void OnInit( EventArgs e )
+        {
+            base.OnInit( e );
+
+            var mediumControl = GetPushNotificationControl();
+
+            mediumControl.ID = "mediumControl";
+            mediumControl.IsTemplate = false;
+            //mediumControl.AdditionalMergeFields = Addi this.AdditionalMergeFields.ToList();
+            mediumControl.ValidationGroup = btnSave.ValidationGroup;
+
+            phPushNotification.Controls.Add( mediumControl );
+        }
+
+        private MediumControl GetPushNotificationControl()
+        {
+            var pushNotificationComponent = MediumContainer
+                                                .Instance
+                                                .Components
+                                                .Where( c => c.Value.Value.CommunicationType == CommunicationType.PushNotification )
+                                                .Select( c => c.Value )
+                                                .FirstOrDefault();
+
+            if ( pushNotificationComponent == null || pushNotificationComponent.Value == null )
+            {
+                return null;
+            }
+
+            return pushNotificationComponent.Value.GetControl( true );
+        }
 
         /// <summary>
         /// Raises the <see cref="E:System.Web.UI.Control.Load" /> event.
@@ -182,6 +214,20 @@ namespace RockWeb.Blocks.Communication
             emailTemplate.SMSFromDefinedValueId = dvpSMSFrom.SelectedValue.AsIntegerOrNull();
             emailTemplate.SMSMessage = tbSMSTextMessage.Text;
 
+            var pushCommunication = new CommunicationDetails();
+            var pushNotificationControl = phPushNotification.Controls[0] as PushNotification;
+            if( pushNotificationControl != null )
+            {
+                pushNotificationControl.UpdateCommunication( pushCommunication );
+            }
+
+            emailTemplate.PushData = pushCommunication.PushData;
+            emailTemplate.PushImageBinaryFileId = pushCommunication.PushImageBinaryFileId;
+            emailTemplate.PushMessage = pushCommunication.PushMessage;
+            emailTemplate.PushOpenAction = pushCommunication.PushOpenAction;
+            emailTemplate.PushOpenMessage = pushCommunication.PushOpenMessage;
+            emailTemplate.PushTitle = pushCommunication.PushTitle;
+
             if ( !emailTemplate.IsValid )
             {
                 // If CodeEditor is hidden, we need to manually add the Required error message or it will not be shown.
@@ -231,6 +277,7 @@ namespace RockWeb.Blocks.Communication
 
             bool showMessagePreview = false;
 
+            var pushCommunication = new CommunicationDetails();
             if ( emailTemplate != null )
             {
                 pdAuditDetails.Visible = true;
@@ -249,6 +296,16 @@ namespace RockWeb.Blocks.Communication
                 tbBcc.Text = emailTemplate.Bcc;
                 tbSubject.Text = emailTemplate.Subject;
                 ceEmailTemplate.Text = emailTemplate.Body;
+
+                pushCommunication = new CommunicationDetails
+                {
+                    PushData = emailTemplate.PushData,
+                    PushImageBinaryFileId = emailTemplate.PushImageBinaryFileId,
+                    PushMessage = emailTemplate.PushMessage,
+                    PushTitle = emailTemplate.PushTitle,
+                    PushOpenMessage = emailTemplate.PushOpenMessage,
+                    PushOpenAction = emailTemplate.PushOpenAction
+                };
 
                 nbTemplateHelp.InnerHtml = CommunicationTemplateHelper.GetTemplateHelp( false );
 
@@ -276,6 +333,12 @@ namespace RockWeb.Blocks.Communication
                 tbBcc.Text = string.Empty;
                 tbSubject.Text = string.Empty;
                 ceEmailTemplate.Text = string.Empty;
+            }
+
+            var pushNotificationControl = phPushNotification.Controls[0] as PushNotification;
+            if ( pushNotificationControl != null )
+            {
+                pushNotificationControl.SetFromCommunication( pushCommunication );
             }
 
             SetEmailMessagePreviewModeEnabled( showMessagePreview );

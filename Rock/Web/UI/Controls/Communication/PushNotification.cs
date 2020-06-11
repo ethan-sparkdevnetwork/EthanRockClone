@@ -318,7 +318,6 @@ namespace Rock.Web.UI.Controls.Communication
             rbOpenAction.SelectedValue = communication.PushOpenAction.ConvertToInt().ToString();
             htmlAdditionalDetails.Text = communication.PushOpenMessage;
 
-            // TODO: figure this out. communication.PushData
             var pushData = new PushData();
             if ( communication.PushData.IsNotNullOrWhiteSpace() )
             {

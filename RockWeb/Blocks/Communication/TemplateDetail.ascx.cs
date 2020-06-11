@@ -78,7 +78,7 @@ namespace RockWeb.Blocks.Communication
         {
             base.OnInit( e );
 
-            var mediumControl = GetPushNotificationControl();
+            var mediumControl = MediumControl.GetMediumControl(CommunicationType.PushNotification);
 
             mediumControl.ID = "mediumControl";
             mediumControl.IsTemplate = false;
@@ -737,23 +737,6 @@ namespace RockWeb.Blocks.Communication
                 btnRevertLavaValue.Text = string.Format( "<div class='btn js-revertlavavalue' title='Revert to default' data-value-control='{0}' data-default='{1}' style='visibility:{2}'><i class='fa fa-times'></i></div>", lavaValueControl.ClientID, defaultValue, visibility );
                 rcwLavaValue.Controls.Add( btnRevertLavaValue );
             }
-        }
-
-        private MediumControl GetPushNotificationControl()
-        {
-            var pushNotificationComponent = MediumContainer
-                                                .Instance
-                                                .Components
-                                                .Where( c => c.Value.Value.CommunicationType == CommunicationType.PushNotification )
-                                                .Select( c => c.Value )
-                                                .FirstOrDefault();
-
-            if ( pushNotificationComponent == null || pushNotificationComponent.Value == null )
-            {
-                return null;
-            }
-
-            return pushNotificationComponent.Value.GetControl( true );
         }
         #endregion
     }

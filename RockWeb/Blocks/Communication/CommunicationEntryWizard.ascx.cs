@@ -35,6 +35,7 @@ using Rock.Security;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
+using Rock.Web.UI.Controls.Communication;
 
 namespace RockWeb.Blocks.Communication
 {
@@ -79,7 +80,7 @@ namespace RockWeb.Blocks.Communication
     [CustomCheckboxListField( "Communication Types",
         Key = AttributeKey.CommunicationTypes,
         Description = "The communication types that should be available to use for the communication (If none are selected, all will be available).",
-        ListSource = "Recipient Preference,Email,SMS",
+        ListSource = "Recipient Preference,Email,SMS,Push",
         IsRequired = false,
         Order = 5 )]
 
@@ -235,6 +236,15 @@ namespace RockWeb.Blocks.Communication
 
             btnUseSimpleEditor.Visible = !string.IsNullOrEmpty( this.GetAttributeValue( AttributeKey.SimpleCommunicationPage ) );
             pnlHeadingLabels.Visible = btnUseSimpleEditor.Visible;
+
+            var mediumControl = MediumControl.GetMediumControl(CommunicationType.PushNotification);
+
+            mediumControl.ID = "mediumControl";
+            mediumControl.IsTemplate = false;
+            //mediumControl.AdditionalMergeFields = Addi this.AdditionalMergeFields.ToList();
+            mediumControl.ValidationGroup = vsPushEditor.ValidationGroup;
+
+            phPushControl.Controls.Add( mediumControl );
         }
 
         /// <summary>
@@ -326,6 +336,7 @@ namespace RockWeb.Blocks.Communication
         {
             Rock.Model.Communication communication = null;
             var rockContext = new RockContext();
+            var pushCommunication = new CommunicationDetails();
 
             if ( communicationId != 0 )
             {
@@ -361,6 +372,16 @@ namespace RockWeb.Blocks.Communication
                         nbCommunicationNotWizardCompatible.Visible = true;
                     }
                 }
+
+                pushCommunication = new CommunicationDetails
+                {
+                    PushData = communication.PushData,
+                    PushImageBinaryFileId = communication.PushImageBinaryFileId,
+                    PushMessage = communication.PushMessage,
+                    PushTitle = communication.PushTitle,
+                    PushOpenMessage = communication.PushOpenMessage,
+                    PushOpenAction = communication.PushOpenAction
+                };
             }
 
             var allowedCommunicationTypes = GetAllowedCommunicationTypes();
@@ -514,6 +535,12 @@ namespace RockWeb.Blocks.Communication
             {
                 htmlEditor.MergeFields.AddRange( communication.AdditionalMergeFields );
             }
+
+            var pushNotificationControl = phPushControl.Controls[0] as PushNotification;
+            if ( pushNotificationControl != null )
+            {
+                pushNotificationControl.SetFromCommunication( pushCommunication );
+            }
         }
 
         /// <summary>
@@ -594,12 +621,18 @@ namespace RockWeb.Blocks.Communication
                 {
                     result.Add( CommunicationType.SMS );
                 }
+
+                if ( communicationTypes.Contains( "Push" ) )
+                {
+                    result.Add( CommunicationType.PushNotification );
+                }
             }
             else
             {
                 result.Add( CommunicationType.RecipientPreference );
                 result.Add( CommunicationType.Email );
                 result.Add( CommunicationType.SMS );
+                result.Add( CommunicationType.PushNotification );
             }
 
             return result;
@@ -1096,14 +1129,16 @@ namespace RockWeb.Blocks.Communication
             // Render warnings for any inactive transports (Javascript will hide and show based on Medium Selection)
             bool smsTransportEnabled = MediumContainer.HasActiveSmsTransport();
             bool emailTransportEnabled = MediumContainer.HasActiveEmailTransport();
+            bool pushTransportEnabled = MediumContainer.HasActivePushTransport();
 
             // See what is allowed by the block settings
             var allowedCommunicationTypes = GetAllowedCommunicationTypes();
             emailTransportEnabled = emailTransportEnabled && allowedCommunicationTypes.Contains( Rock.Model.CommunicationType.Email );
             smsTransportEnabled = smsTransportEnabled && allowedCommunicationTypes.Contains( Rock.Model.CommunicationType.SMS );
+            pushTransportEnabled = pushTransportEnabled && allowedCommunicationTypes.Contains( Rock.Model.CommunicationType.PushNotification );
 
             // only prompt for Medium Type if more than one will be visible
-            rcwMediumType.Visible = ( smsTransportEnabled || emailTransportEnabled ) && allowedCommunicationTypes.Count() > 1;
+            rcwMediumType.Visible = ( smsTransportEnabled || emailTransportEnabled || pushTransportEnabled ) && allowedCommunicationTypes.Count() > 1;
 
             if ( !rcwMediumType.Visible )
             {
@@ -1116,18 +1151,24 @@ namespace RockWeb.Blocks.Communication
                 {
                     hfMediumType.Value = CommunicationType.SMS.ConvertToInt().ToString();
                 }
+                else if ( pushTransportEnabled )
+                {
+                    hfMediumType.Value = CommunicationType.PushNotification.ConvertToInt().ToString();
+                }
+
             }
             else
             {
                 btnMediumRecipientPreference.Visible = allowedCommunicationTypes.Contains( Rock.Model.CommunicationType.RecipientPreference );
-                btnMediumEmail.Visible = emailTransportEnabled && emailTransportEnabled;
-                btnMediumSMS.Visible = smsTransportEnabled && smsTransportEnabled;
+                btnMediumEmail.Visible = emailTransportEnabled;
+                btnMediumSMS.Visible = smsTransportEnabled;
+                btnMediumPush.Visible = pushTransportEnabled;
             }
 
             // make sure that either EMAIL or SMS is enabled
-            if ( !( emailTransportEnabled || smsTransportEnabled ) )
+            if ( !( emailTransportEnabled || smsTransportEnabled || pushTransportEnabled ) )
             {
-                nbNoCommunicationTransport.Text = "There are no active Email or SMS communication transports configured.";
+                nbNoCommunicationTransport.Text = "There are no active Email, SMS, or Push communication transports configured.";
                 nbNoCommunicationTransport.Visible = true;
                 btnCommunicationDeliveryNext.Enabled = false;
             }
@@ -1416,6 +1457,10 @@ namespace RockWeb.Blocks.Communication
             {
                 ShowMobileTextEditor();
             }
+            else if ( communicationType == CommunicationType.PushNotification )
+            {
+                ShowPushEditor();
+            }
         }
 
         /// <summary>
@@ -1471,6 +1516,10 @@ namespace RockWeb.Blocks.Communication
             if ( communicationType == CommunicationType.SMS || communicationType == CommunicationType.RecipientPreference )
             {
                 ShowMobileTextEditor();
+            }
+            else if ( communicationType == CommunicationType.PushNotification )
+            {
+                ShowPushEditor();
             }
             else
             {
@@ -2134,7 +2183,25 @@ namespace RockWeb.Blocks.Communication
         protected void btnMobileTextEditorNext_Click( object sender, EventArgs e )
         {
             pnlMobileTextEditor.Visible = false;
-            ShowConfirmation();
+            var communicationType = ( Rock.Model.CommunicationType ) hfMediumType.Value.AsInteger();
+            if ( communicationType == CommunicationType.PushNotification || communicationType == CommunicationType.RecipientPreference )
+            {
+                ShowPushEditor();
+            }
+            else
+            {
+                ShowConfirmation();
+            }
+        }
+
+        private void ShowPushEditor()
+        {
+            var rockContext = new RockContext();
+            Rock.Model.Communication communication = UpdateCommunication( rockContext );
+
+
+            pnlPushEditor.Visible = true;
+            SetNavigationHistory( pnlPushEditor );
         }
 
         /// <summary>
@@ -2260,6 +2327,10 @@ sendCountTerm.PluralizeIf( sendCount != 1 ) );
             else if ( communicationType == CommunicationType.Email )
             {
                 ShowEmailEditor();
+            }
+            else if ( communicationType == CommunicationType.PushNotification )
+            {
+                ShowPushEditor();
             }
         }
 
@@ -2571,6 +2642,8 @@ sendCountTerm.PluralizeIf( sendCount != 1 ) );
 
             var emailMediumEntityType = EntityTypeCache.Get( Rock.SystemGuid.EntityType.COMMUNICATION_MEDIUM_EMAIL.AsGuid() );
             var smsMediumEntityType = EntityTypeCache.Get( Rock.SystemGuid.EntityType.COMMUNICATION_MEDIUM_SMS.AsGuid() );
+            var pushMediumEntityType = EntityTypeCache.Get( Rock.SystemGuid.EntityType.COMMUNICATION_MEDIUM_PUSH_NOTIFICATION.AsGuid() );
+
             var communicationListGroupMemberCommunicationTypeLookup = new Dictionary<int, CommunicationType>();
 
             if ( communication.CommunicationType == CommunicationType.RecipientPreference )
@@ -2591,13 +2664,14 @@ sendCountTerm.PluralizeIf( sendCount != 1 ) );
                 // GetValueOrNull will default to CommunicationType.RecipientPreference if not found in the dictionary.
                 var groupMemberPreference = communicationListGroupMemberCommunicationTypeLookup.GetValueOrNull( recipient.PersonAlias.PersonId );
 
-                var recipientPreference = recipientPersonsLookup.ContainsKey(recipient.PersonAlias.PersonId) ?
+                var recipientPreference = recipientPersonsLookup.ContainsKey( recipient.PersonAlias.PersonId ) ?
                     recipientPersonsLookup[recipient.PersonAlias.PersonId].CommunicationPreference :
                     groupMemberPreference;
 
                 recipient.MediumEntityTypeId = Rock.Model.Communication.DetermineMediumEntityTypeId(
                     emailMediumEntityType.Id,
                     smsMediumEntityType.Id,
+                    pushMediumEntityType.Id,
                     communication.CommunicationType,
                     groupMemberPreference,
                     recipientPreference );
@@ -2664,6 +2738,20 @@ sendCountTerm.PluralizeIf( sendCount != 1 ) );
                 communication.FutureSendDateTime = dtpSendDateTimeConfirmation.SelectedDateTime;
             }
 
+            var pushCommunication = new CommunicationDetails();
+            var pushNotificationControl = phPushControl.Controls[0] as PushNotification;
+            if ( pushNotificationControl != null )
+            {
+                pushNotificationControl.UpdateCommunication( pushCommunication );
+            }
+
+            communication.PushData = pushCommunication.PushData;
+            communication.PushImageBinaryFileId = pushCommunication.PushImageBinaryFileId;
+            communication.PushMessage = pushCommunication.PushMessage;
+            communication.PushOpenAction = pushCommunication.PushOpenAction;
+            communication.PushOpenMessage = pushCommunication.PushOpenMessage;
+            communication.PushTitle = pushCommunication.PushTitle;
+
             return communication;
         }
 
@@ -2679,5 +2767,30 @@ sendCountTerm.PluralizeIf( sendCount != 1 ) );
         }
 
         #endregion
+
+        protected void btnPushEditorPrevious_Click( object sender, EventArgs e )
+        {
+            pnlPushEditor.Visible = false;
+
+            var communicationType = ( Rock.Model.CommunicationType ) hfMediumType.Value.AsInteger();
+            if ( communicationType == CommunicationType.SMS || communicationType == CommunicationType.RecipientPreference )
+            {
+                ShowMobileTextEditor();
+            }
+            else if ( communicationType == CommunicationType.Email )
+            {
+                ShowEmailEditor();
+            }
+            else
+            {
+                ShowTemplateSelection();
+            }
+        }
+
+        protected void btnPushEditorNext_Click( object sender, EventArgs e )
+        {
+            pnlPushEditor.Visible = false;
+            ShowConfirmation();
+        }
     }
 }

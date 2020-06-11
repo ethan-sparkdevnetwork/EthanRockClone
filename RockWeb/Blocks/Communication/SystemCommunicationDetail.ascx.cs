@@ -57,7 +57,7 @@ namespace RockWeb.Blocks.Communication
         {
             base.OnInit( e );
 
-            var mediumControl = GetPushNotificationControl();
+            var mediumControl = MediumControl.GetMediumControl( CommunicationType.PushNotification );
 
             mediumControl.ID = "mediumControl";
             mediumControl.IsTemplate = false;
@@ -65,23 +65,6 @@ namespace RockWeb.Blocks.Communication
             mediumControl.ValidationGroup = btnSave.ValidationGroup;
 
             phPushNotification.Controls.Add( mediumControl );
-        }
-
-        private MediumControl GetPushNotificationControl()
-        {
-            var pushNotificationComponent = MediumContainer
-                                                .Instance
-                                                .Components
-                                                .Where( c => c.Value.Value.CommunicationType == CommunicationType.PushNotification )
-                                                .Select( c => c.Value )
-                                                .FirstOrDefault();
-
-            if ( pushNotificationComponent == null || pushNotificationComponent.Value == null )
-            {
-                return null;
-            }
-
-            return pushNotificationComponent.Value.GetControl( true );
         }
 
         /// <summary>

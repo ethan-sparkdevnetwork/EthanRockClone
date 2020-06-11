@@ -206,8 +206,7 @@ namespace Rock.Web.UI.Controls.Communication
             ddlMobileApplications = new RockDropDownList
             {
                 ID = $"{nameof( ddlMobileApplications )}_{ID}",
-                Label = "Application",
-                EnableViewState = false
+                Label = "Application"
             };
 
             ddlMobileApplications.Items.Add( new ListItem() );
@@ -224,8 +223,7 @@ namespace Rock.Web.UI.Controls.Communication
             {
                 ID = $"{nameof( htmlAdditionalDetails )}_{ID}",
                 Label = "Additional Details",
-                Height = 300,
-                EnableViewState = false
+                Height = 300
             };
 
             rcwMessage.Controls.Add( htmlAdditionalDetails );
@@ -233,8 +231,7 @@ namespace Rock.Web.UI.Controls.Communication
             ppMobilePage = new PagePicker
             {
                 ID = $"{nameof( ppMobilePage )}_{ID}",
-                Label = "Mobile Page",
-                EnableViewState = false
+                Label = "Mobile Page"
             };
 
             rcwMessage.Controls.Add( ppMobilePage );
@@ -243,7 +240,6 @@ namespace Rock.Web.UI.Controls.Communication
             {
                 ID = $"{nameof( kvlQuerystring )}_{ID}",
                 Label = "Mobile Page Query String",
-                EnableViewState = false,
                 KeyPrompt = "Key",
                 ValuePrompt = "Value"
             };
@@ -253,8 +249,7 @@ namespace Rock.Web.UI.Controls.Communication
             urlLink = new UrlLinkBox
             {
                 ID = $"{nameof( urlLink )}_{ID}",
-                Label = "URL",
-                EnableViewState = false
+                Label = "URL"
             };
 
             rcwMessage.Controls.Add( urlLink );
@@ -316,23 +311,39 @@ namespace Rock.Web.UI.Controls.Communication
 
             iupPushImage.BinaryFileId = communication.PushImageBinaryFileId;
             rbOpenAction.SelectedValue = communication.PushOpenAction.ConvertToInt().ToString();
-            htmlAdditionalDetails.Text = communication.PushOpenMessage;
-
+            
             var pushData = new PushData();
             if ( communication.PushData.IsNotNullOrWhiteSpace() )
             {
                 pushData = Newtonsoft.Json.JsonConvert.DeserializeObject<PushData>( communication.PushData );
             }
-            ddlMobileApplications.SelectedValue = pushData.MobileApplicationId.ToStringSafe();
-            ppMobilePage.SetValue( pushData.MobilePageId );
-            urlLink.Text = pushData.Url;
-            kvlQuerystring.Value = null;
-            if ( pushData.MobilePageQueryString != null )
+
+            ddlMobileApplications.SelectedValue = null;
+            htmlAdditionalDetails.Text = null;
+
+            if (communication.PushOpenAction == PushOpenAction.ShowDetails )
             {
-                kvlQuerystring.Value = pushData.MobilePageQueryString.Select( a => string.Format( "{0}^{1}", a.Key, a.Value ) ).ToList().AsDelimited( "|" );
+                ddlMobileApplications.SelectedValue = pushData.MobileApplicationId.ToStringSafe();
+                htmlAdditionalDetails.Text = communication.PushOpenMessage;
             }
 
-            
+            kvlQuerystring.Value = null;
+
+            if ( communication.PushOpenAction == PushOpenAction.LinkToMobilePage )
+            {
+                ppMobilePage.SetValue( pushData.MobilePageId );
+
+                if ( pushData.MobilePageQueryString != null )
+                {
+                    kvlQuerystring.Value = pushData.MobilePageQueryString.Select( a => string.Format( "{0}^{1}", a.Key, a.Value ) ).ToList().AsDelimited( "|" );
+                }
+            }
+
+            urlLink.Text = null;
+            if (communication.PushOpenAction == PushOpenAction.LinkToUrl )
+            {
+                urlLink.Text = pushData.Url;
+            }
         }
 
         /// <summary>
@@ -346,15 +357,26 @@ namespace Rock.Web.UI.Controls.Communication
             communication.PushMessage = tbMessage.Text;
             communication.PushImageBinaryFileId = iupPushImage.BinaryFileId;
             communication.PushOpenAction = ( PushOpenAction ) rbOpenAction.SelectedValue.AsIntegerOrNull();
-            communication.PushOpenMessage = htmlAdditionalDetails.Text;
 
-            var pushData = new PushData
+            var pushData = new PushData();
+
+            if ( communication.PushOpenAction == PushOpenAction.ShowDetails )
             {
-                MobileApplicationId = ddlMobileApplications.SelectedValue.AsIntegerOrNull(),
-                MobilePageQueryString = kvlQuerystring.Value.AsDictionaryOrNull(),
-                MobilePageId = ppMobilePage.SelectedValue.AsIntegerOrNull(),
-                Url = urlLink.Text
-            };
+                communication.PushOpenMessage = htmlAdditionalDetails.Text;
+                pushData.MobileApplicationId = ddlMobileApplications.SelectedValue.AsIntegerOrNull();
+            }
+
+            if ( communication.PushOpenAction == PushOpenAction.LinkToMobilePage )
+            {
+                pushData.MobilePageQueryString = kvlQuerystring.Value.AsDictionaryOrNull();
+                pushData.MobilePageId = ppMobilePage.SelectedValue.AsIntegerOrNull();
+            }
+
+            if ( communication.PushOpenAction == PushOpenAction.LinkToUrl )
+            {
+                pushData.Url = urlLink.Text;
+            }
+
             communication.PushData = pushData.ToJson();
         }
 
